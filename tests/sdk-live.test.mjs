@@ -30,6 +30,8 @@ const PROJECTS = {
   weird: { client: { cookiesSettings: { geolocation: true } }, cookies: [cfg('dup', { country: ['CA', 'CA'], language: null }), cfg('frca', { country: 'CA', language: 'fr-CA', regulation: null }), cfg('qc', { country: 'CA', subdivision: 'QC', language: 'fr', regulation: 'loi25' }), cfg('num', { country: ['US', ''], language: '', regulation: 'gpp' })] },
   geoOffPages: { client: {}, cookies: [cfg('home', { settings: { pages: [{ url: '/', regex: false }] } }), cfg('en', { settings: { pages: [{ url: '^/en(/|$)', regex: true }] } }), cfg('any'), cfg('fr', { settings: { pages: [{ url: '/fr' }] } })] },
   geoOffNoSteps: { cookies: [cfg('nosteps', { steps: [] }), cfg('second')] },
+  // Rules that aren't objects, or have no url, read as an empty URL: they match every page.
+  loosePageRules: { cookies: [cfg('any'), cfg('loose', { settings: { pages: ['/fr', 7] } }), cfg('nourl', { settings: { pages: [{ regex: true }] } })] },
 };
 const forceOn = (p) => ({ ...p, client: { ...(p.client ?? {}), cookiesSettings: { ...(p.client?.cookiesSettings ?? {}), geolocation: true } } });
 

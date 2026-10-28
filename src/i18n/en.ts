@@ -4,9 +4,45 @@ import type { CopyContext, FindingCopy, Messages } from './types';
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** Names that take "the" inside a sentence: the United States, the Netherlands, the Cayman Islands... */
-const TAKES_THE =
-  /^(United |Republic |Democratic |Central African |Dominican |Czech Republic|Federated |Holy See|Netherlands|Philippines|Bahamas|Gambia|Maldives|Seychelles|Comoros|Vatican)|( Islands| Isles)$/;
+/** Place names that take "the" inside a sentence (names from the map data, plus common variants). */
+const TAKES_THE = new Set([
+  'Bahamas',
+  'British Indian Ocean Territory',
+  'British Virgin Islands',
+  'Caribbean Netherlands',
+  'Cayman Islands',
+  'Central African Republic',
+  'Comoros',
+  'Cook Islands',
+  'Czech Republic',
+  'Democratic Republic of the Congo',
+  'Dominican Republic',
+  'Falkland Islands',
+  'Faroe Islands',
+  'Federated States of Micronesia',
+  'French Southern and Antarctic Lands',
+  'Gambia',
+  'Heard Island and McDonald Islands',
+  'Maldives',
+  'Marshall Islands',
+  'Netherlands',
+  'Northern Mariana Islands',
+  "People's Republic of China",
+  'Philippines',
+  'Pitcairn Islands',
+  'Republic of the Congo',
+  'Seychelles',
+  'Solomon Islands',
+  'South Georgia and the South Sandwich Islands',
+  'Turks and Caicos Islands',
+  'United Arab Emirates',
+  'United Kingdom',
+  'United States',
+  'United States Minor Outlying Islands',
+  'United States Virgin Islands',
+]);
+/** "the United States", "the Bahamas" (from "The Bahamas"), "France". */
+const inSentence = (name: string) => (name.startsWith('The ') ? `the ${name.slice(4)}` : TAKES_THE.has(name) ? `the ${name}` : name);
 
 /** Where visitors in an unreachable code are located: "Île-de-France (FR-IDF)", "the country Puerto Rico (PR)". */
 const located = (u: UnreachableTarget, c: CopyContext) =>
@@ -79,10 +115,14 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
       const they = (one: string, many: string) => plural(n, one, many);
       const capturing = c.configs(d.capturing);
       const country = c.countryIn(d.country);
-      const intended = c.placesIn(d.intended);
+      const nIntended = (d.intended as string[]).length;
+      // Past three regions, the list collapses to a count.
+      const intended = nIntended > 3 ? `${nIntended} regions of ${country}` : c.placesIn(d.intended);
+      const keeps =
+        (nIntended > 3 ? `these ${nIntended} regions keep their` : nIntended === 1 ? `${intended} keeps its` : `${intended} keep their`) +
+        ` ${they('banner', 'banners')}, since region matches come first`;
       const competitor = d.competitor ? c.config(d.competitor) : null;
       const regs = (d.regulations ?? []) as string[];
-      const keeps = `${intended} ${plural(d.intended.length, 'keeps its', 'keep their')} ${they('banner', 'banners')}, since region matches come first`;
       const add =
         regs.length > 1
           ? `Add banners listing only ${country}, one per regulation (${c.regulations(regs)})`
@@ -90,22 +130,26 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
             ? `Add a banner listing only ${country}, with the ${c.regulation(regs[0])} regulation`
             : `Add a banner listing only ${country}`;
       const created = plural(Math.max(regs.length, 1), 'the new one', 'the new ones');
+      const title = `${capturing} also ${they('shows', 'show')} in the rest of ${country}`;
       if (d.step === 'multi-country') {
         return {
-          title: `${capturing} also ${they('shows', 'show')} in the rest of ${country}`,
+          title,
           mechanism: `${they('It targets', 'They target')} ${intended}, but ${they('it also lists', 'they also list')} ${country} among other countries. Elsewhere in ${country}, no banner targets the visitor's region and none lists ${country} alone, so the SDK picks among banners listing it with others, and ${they('this one wins', 'these win')}.`,
           fix: `${add}. Banners listing a single country come before banners listing several, so the rest of ${country} gets ${created}; ${keeps}.`,
         };
       }
+      const split = competitor ? ` (for example, split ${competitor} into one banner per country)` : '';
+      const above = `, in ${they('its language', 'their languages')}, and list ${plural(Math.max(regs.length, 1), 'it', 'them')} above ${capturing}`;
       return {
-        title: `${capturing} also ${they('shows', 'show')} in the rest of ${country}`,
+        title,
         mechanism:
           `${they('It targets', 'They target')} ${intended}, but ${they('it lists', 'they list')} ${country} as ${they('its', 'their')} only country. Elsewhere in ${country}, no banner targets the visitor's region, so the SDK moves on to banners listing only ${country}, and ${they('this one wins', 'these win')}.` +
           (competitor ? ` ${competitor} lists ${country} too, but among other countries, so it only comes after.` : ''),
-        fix:
-          regs.length > 0
-            ? `${add}${competitor ? ` (for example, split ${competitor} into one banner per country)` : ''}. Among banners listing only ${country}, the SDK prefers the one whose regulation matches the visitor's region, so the rest of ${country} gets ${created}; ${keeps}.`
-            : `${add} for each language ${they('it uses', 'they use')}, above ${they('it', 'them')} in your list. With no regulation to prefer in ${country}, the SDK breaks the tie by visitor language, then by list order; ${keeps}.`,
+        fix: !d.tie
+          ? `${add}${split}. Among banners listing only ${country}, the SDK prefers the one whose regulation matches the visitor's region, so the rest of ${country} gets ${created}; ${keeps}.`
+          : regs.length > 0
+            ? `${add}${split}${above}. Where ${they('it has', 'they have')} the visitor's regulation too, the SDK can't choose by regulation and goes by visitor language, then list order; ${keeps}.`
+            : `${add}${above}. With no regulation to prefer in ${country}, the SDK goes by visitor language, then list order; ${keeps}.`,
       };
     }
     case 'regulation-mismatch': {
@@ -219,7 +263,7 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
 
 export const en: Messages = {
   locale: 'en',
-  article: (name) => (TAKES_THE.test(name) ? `the ${name}` : name),
+  article: inSentence,
   app: {
     title: 'Cookies Atlas',
     tagline: 'See which Axeptio banner each country gets, and why.',
@@ -311,6 +355,7 @@ export const en: Messages = {
       ].filter(Boolean);
       return parts.length ? `shown in ${parts.join(' and ')}` : 'shown nowhere';
     },
+    defaultElsewhere: 'shown on pages no page rule matches (the map shows the home page)',
     notDefault: (hasPageRules) => `shown only when the site pins it with cookiesVersion${hasPageRules ? ', or on pages its rules match' : ''}`,
     neverShown: 'Never shown',
     fallback: 'Fallback',

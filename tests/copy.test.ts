@@ -40,12 +40,22 @@ const synthetic: AxeptioProject = {
     cfg('world', { language: 'en' }),
   ],
 };
+// One banner for two regions, and one for many: the copy has to agree in number.
+const regions: AxeptioProject = {
+  client: { cookiesSettings: { geolocation: true, geolocationFallbackConfigId: 'world' } },
+  cookies: [
+    cfg('two', { country: ['CA'], subdivision: ['CA-QC', 'CA-ON'], regulation: 'loi25', language: 'fr' }),
+    cfg('many', { country: ['US', 'GB'], subdivision: ['US-CA', 'US-NY', 'US-TX', 'US-FL'], regulation: 'ccpa', language: 'en' }),
+    cfg('world', { language: 'en' }),
+  ],
+};
 
 const projects: Array<[string, AxeptioProject]> = [
   ['mackage', mackageJson as AxeptioProject],
   ['quilicot', quilicotJson as AxeptioProject],
   ['axeptio', axeptioJson as AxeptioProject],
   ['synthetic', synthetic],
+  ['regions', regions],
 ];
 
 describe.each(['en', 'fr'] as UiLanguage[])('finding copy (%s)', (ui) => {
@@ -67,6 +77,22 @@ describe.each(['en', 'fr'] as UiLanguage[])('finding copy (%s)', (ui) => {
   });
 });
 
+describe('over-capture copy', () => {
+  const findings = diagnose(regions, evaluateProject(regions, { mode: 'actual', visitor: { now: NOW } }), NOW).filter((f) => f.kind === 'over-capture');
+  const text = (ui: UiLanguage) => findings.map((f) => MESSAGES[ui].diagnostics.finding(f, buildCopyContext(ui, regions, names)));
+  it('agrees in number in French', () => {
+    const [two, many] = text('fr');
+    expect(two.fix).toContain('Les régions Ontario (Canada) et Québec (Canada) gardent leur bandeau');
+    expect(many.mechanism).toContain('Il cible 4 régions (États-Unis)');
+    expect(many.fix).toContain('Ces 4 régions gardent leur bandeau');
+  });
+  it('counts long region lists in English', () => {
+    const [, many] = text('en');
+    expect(many.mechanism).toContain('It targets 4 regions of the United States');
+    expect(many.fix).toContain('these 4 regions keep their banner');
+  });
+});
+
 describe('English place names in sentences', () => {
   const c = buildCopyContext('en', synthetic, names);
   it('adds "the" where English needs it, only in running text', () => {
@@ -77,5 +103,8 @@ describe('English place names in sentences', () => {
     expect(c.placeIn('US')).toBe('the United States (other regions)');
     expect(c.placesIn(['GB', 'BR'])).toBe('the United Kingdom and Brazil');
     expect(c.placeIn('US-CA')).toBe('California (United States)');
+    expect(MESSAGES.en.article('The Bahamas')).toBe('the Bahamas');
+    expect(MESSAGES.en.article('Vatican City')).toBe('Vatican City');
+    expect(MESSAGES.en.article('Caribbean Netherlands')).toBe('the Caribbean Netherlands');
   });
 });

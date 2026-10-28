@@ -15,7 +15,7 @@ import {
 } from './evaluate';
 import { COUNTRY_CODE_FIXES, ISO_3166_1 } from './iso-3166';
 import { OPT_IN_REGULATIONS, OPT_OUT_REGULATIONS, REGULATIONS } from './regions';
-import { langKey, pageMatches, sameRegulation, selectConfig, type Selection, type TraceEntry } from './select';
+import { langKey, pageMatches, sameRegulation, type Selection, type TraceEntry } from './select';
 import type { AxeptioConfig, AxeptioProject, PageRule } from './types';
 
 export type Severity = 'error' | 'warning' | 'info';
@@ -67,19 +67,30 @@ const KNOWN_REGULATIONS = new Set<string>(Object.values(REGULATIONS));
 
 const isWellFormedSubdivision = (value: string) => /^[A-Z]{2}-[A-Z0-9]{1,3}$/.test(value);
 
-/** What a config is meant to cover: its subdivisions (normalized when possible) and countries. */
+/**
+ * What a config is meant to cover: its countries, and the regions it targets that a visitor can be
+ * reported in (normalized when possible; "FR-75" is left out, see the unreachable-subdivision finding).
+ */
 export function intentOf(config: AxeptioConfig): { subdivisions: string[]; countries: string[] } {
   const countries = countriesOf(config);
   const single = new Set(countries).size === 1 ? countries[0] : undefined;
   const subdivisions = subdivisionsOf(config)
     .map((s) => (isWellFormedSubdivision(s) ? s : single && /^[A-Z0-9]{1,3}$/.test(s) ? `${single}-${s}` : null))
-    .filter((s): s is string => s !== null);
+    .filter((s): s is string => s !== null && !reportedInstead(s));
   return { subdivisions, countries };
 }
 
 /** A config's page rules, read like the SDK does: only a list counts. */
 const pageRulesOf = (config: AxeptioConfig): PageRule[] => (Array.isArray(config.settings?.pages) ? config.settings!.pages! : []);
 const hasPageRules = (config: AxeptioConfig) => pageRulesOf(config).length > 0;
+
+/**
+ * The banner the SDK serves when location doesn't decide and the site pins nothing, on pages no
+ * page rule matches: the first banner with steps and no page rules.
+ */
+export function nonGeoDefaultOf(project: AxeptioProject): string | null {
+  return (project.cookies ?? []).find((c) => Array.isArray(c.steps) && c.steps.length > 0 && !hasPageRules(c))?.identifier ?? null;
+}
 
 export function regulationKind(value: unknown): RegulationKind {
   if (typeof value !== 'string' || !value) return 'none';
@@ -135,16 +146,15 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
 
   // --- Project-level settings ------------------------------------------------------------
   if (!geolocationOn) {
-    // What a visitor on the home page gets today (no cookiesVersion pinned by the site).
-    const allowed = settings?.isBannerVisibilityEnabled && Array.isArray(settings.allowedCountries) ? settings.allowedCountries : [];
-    const today = selectConfig(project, { countryCode: allowed[0] ?? 'FR', subdivisionCode: 'Unknown', pagePath: '/', now }).config;
+    // What visitors get today when the site pins nothing, on pages no page rule matches.
+    const today = nonGeoDefaultOf(project);
     findings.push({
       id: 'geolocation-off',
       kind: 'geolocation-off',
       severity: 'warning',
-      configs: today ? [today.identifier] : [],
+      configs: today ? [today] : [],
       regions: [],
-      data: { defaultConfig: today?.identifier ?? null, configCount: configs.length, hasPageRules: configs.some(hasPageRules) },
+      data: { defaultConfig: today, configCount: configs.length, hasPageRules: configs.some(hasPageRules) },
     });
   }
 
@@ -237,8 +247,8 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
       if (pageMatches(rule, '/') !== null) continue;
       const isObject = Boolean(rule) && typeof rule === 'object';
       const url = isObject && rule.url != null ? String(rule.url) : '';
-      // An object with the regex option is a broken pattern; anything else is a malformed rule.
-      const problem = isObject && rule.regex ? 'regex' : 'malformed';
+      // A text URL with the regex option is a broken pattern; anything else is a malformed rule.
+      const problem = isObject && rule.regex && typeof rule.url === 'string' ? 'regex' : 'malformed';
       const id = `invalid-page-rule:${config.identifier}:${problem}:${url}`;
       if (findings.some((f) => f.id === id)) continue;
       findings.push({ id, kind: 'invalid-page-rule', severity: 'warning', configs: [config.identifier], regions: [], data: { url, problem } });
@@ -295,15 +305,26 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
     }
   }
   for (const group of captureGroups.values()) {
+    const single = group.step === 'single-country';
     // At the single-country step, a config listing the country among others, with the regulation
     // of the rest of the country, loses only because the capturing ones are checked first.
-    const competitor =
-      group.step === 'single-country'
-        ? configs.find(
-            (c) =>
-              !group.capturing.includes(c.identifier) && countriesOf(c).includes(group.country) && sameRegulation(c.regulation, group.regulation),
-          )
-        : undefined;
+    const competitor = single
+      ? configs.find(
+          (c) =>
+            !group.capturing.includes(c.identifier) &&
+            countriesOf(c).includes(group.country) &&
+            new Set(countriesOf(c)).size > 1 &&
+            sameRegulation(c.regulation, group.regulation),
+        )
+      : undefined;
+    // A new single-country banner only wins the regulation preference where its regulation differs
+    // from the capturing banners'. Where they share it (or there's none), language then list order decide.
+    const tie =
+      single &&
+      [...group.regions].some((key) => {
+        const R = evaluation.regions.get(key)!.regulation;
+        return !R || group.capturing.some((id) => sameRegulation(byId.get(id)?.regulation, R));
+      });
     if (competitor) for (const key of group.regions) explainedShadow.add(`${competitor.identifier}|${key}`);
     findings.push({
       id: `over-capture:${group.country}`,
@@ -320,6 +341,7 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
         regulations: [...group.regulations].sort((a, b) => (a === group.regulation ? -1 : b === group.regulation ? 1 : a.localeCompare(b))),
         capturing: group.capturing,
         competitor: competitor?.identifier ?? null,
+        tie,
       },
     });
   }

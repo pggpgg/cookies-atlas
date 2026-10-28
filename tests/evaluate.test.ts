@@ -96,6 +96,7 @@ describe('reportedInstead', () => {
     expect(reportedInstead('GB-KEN')).toEqual({ key: 'GB-ENG', level: 'region' });
     expect(reportedInstead('IT-MI')).toEqual({ key: 'IT-25', level: 'region' });
     expect(reportedInstead('ES-NA')).toEqual({ key: 'ES-NC', level: 'region' });
+    expect(reportedInstead('IE-D')).toEqual({ key: 'IE-L', level: 'region' });
     expect(reportedInstead('US-PR')).toEqual({ key: 'PR', level: 'country' });
   });
 

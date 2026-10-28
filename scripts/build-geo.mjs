@@ -36,19 +36,33 @@ const UNIT_OVERRIDES = {
   'Southern Patagonian Ice Field': 'AR',
   'Wake Island': 'UM',
 };
-/** Country names that are too long for tooltips and tables. */
+/** Country names that are too long, ambiguous or misspelled for tooltips and tables. */
 const COUNTRY_NAME_OVERRIDES = {
   US: { en: 'United States', fr: 'États-Unis' },
+  CN: { en: 'China', fr: 'Chine' },
+  SX: { en: 'Sint Maarten', fr: 'Sint Maarten' }, // not to be confused with French Saint-Martin (MF)
+  PN: { en: 'Pitcairn Islands', fr: 'Îles Pitcairn' },
 };
+/** Names are labels: "îles Caïmans" becomes "Îles Caïmans". */
+const capitalize = (name) => (typeof name === 'string' && name ? name.charAt(0).toUpperCase() + name.slice(1) : name);
 /** Codes we don't draw. */
 const SKIP_CODES = new Set(['AQ']);
 /** Natural Earth placeholder codes that no CDN reports, merged into the country a visitor there gets. */
 const PLACEHOLDER_CODES = { XD: 'SY' }; // UNDOF zone, Golan Heights
 
+/** Irish counties by province (ISO 3166-2:IE: provinces first, counties second). */
+const IE_PROVINCES = {
+  C: ['G', 'LM', 'MO', 'RN', 'SO'],
+  L: ['CW', 'D', 'KE', 'KK', 'LS', 'LD', 'LH', 'MH', 'OY', 'WH', 'WX', 'WW'],
+  M: ['CE', 'CO', 'KY', 'LK', 'TA', 'WD'],
+  U: ['CN', 'DL', 'MN'],
+};
+const IE_PROVINCE_OF = Object.fromEntries(Object.entries(IE_PROVINCES).flatMap(([province, counties]) => counties.map((c) => [c, province])));
 /** First-level regions for countries where Natural Earth subdivisions are finer than ISO 3166-2 level 1. */
 const PARENT_BY_FIELD = {
   GB: (p) => ({ England: 'ENG', Scotland: 'SCT', Wales: 'WLS', 'Northern Ireland': 'NIR' })[p.geonunit],
   BE: (p) => ({ Flemish: 'VLG', Walloon: 'WAL', 'Capital Region': 'BRU' })[p.region],
+  IE: (p) => IE_PROVINCE_OF[String(p.iso_3166_2 ?? '').replace(/^IE-/, '')],
 };
 /**
  * Countries whose Natural Earth `region_cod` is the ISO 3166-2 first-level code of a finer subdivision
@@ -74,6 +88,7 @@ const PARENT_NAMES = {
   GB: { ENG: ['England', 'Angleterre'], SCT: ['Scotland', 'Écosse'], WLS: ['Wales', 'Pays de Galles'], NIR: ['Northern Ireland', 'Irlande du Nord'] },
   BE: { VLG: ['Flanders', 'Flandre'], WAL: ['Wallonia', 'Wallonie'], BRU: ['Brussels', 'Bruxelles'] },
   ES: { NC: ['Navarre', 'Navarre'], MC: ['Murcia', 'Murcie'], IB: ['Balearic Islands', 'Îles Baléares'], RI: ['La Rioja', 'La Rioja'] },
+  IE: { C: ['Connacht', 'Connacht'], L: ['Leinster', 'Leinster'], M: ['Munster', 'Munster'], U: ['Ulster', 'Ulster'] },
 };
 
 async function ensure(file) {
@@ -116,7 +131,7 @@ async function buildCountries() {
     if (!code || SKIP_CODES.has(code)) continue;
     // Map units split some countries (GB nations, Belgian regions), so prefer the country's own name.
     const name = COUNTRY_NAME_OVERRIDES[code] ?? names[code] ?? { en: p.NAME_EN || p.NAME, fr: p.NAME_FR || p.NAME_EN || p.NAME };
-    features.push({ type: 'Feature', properties: { id: code, en: name.en, fr: name.fr }, geometry: f.geometry });
+    features.push({ type: 'Feature', properties: { id: code, en: capitalize(name.en), fr: capitalize(name.fr) }, geometry: f.geometry });
   }
 
   const topo = await run(
@@ -171,10 +186,10 @@ async function buildAdmin1() {
       properties: {
         code,
         parent,
-        en: name.en,
-        fr: name.fr,
-        parentEn: parentName?.[0] ?? null,
-        parentFr: parentName?.[1] ?? null,
+        en: capitalize(name.en),
+        fr: capitalize(name.fr),
+        parentEn: capitalize(parentName?.[0] ?? null),
+        parentFr: capitalize(parentName?.[1] ?? null),
       },
       geometry: f.geometry,
     });

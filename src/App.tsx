@@ -57,6 +57,8 @@ export function App() {
   });
   const [world, setWorld] = useState<Array<Feature<Geometry, CountryProps>> | null>(null);
   const [splits, setSplits] = useState<CountryFile[]>([]);
+  /** The visitor's own country file, only to name their region ("Île-de-France", not "France (IDF)"). */
+  const [viewerFile, setViewerFile] = useState<CountryFile | null>(null);
   const [copied, setCopied] = useState<'map' | 'scenario' | null>(null);
   const [exporting, setExporting] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -91,8 +93,10 @@ export function App() {
   // Load the project whenever the ID changes.
   useEffect(() => {
     if (!projectId) {
+      // Back home: an aborted request won't reset these.
       setLoaded(null);
       setError(null);
+      setLoading(false);
       return;
     }
     const controller = new AbortController();
@@ -132,6 +136,21 @@ export function App() {
     };
   }, [project]);
 
+  const viewerCountry = loaded?.viewer.region ? loaded.viewer.country : null;
+  useEffect(() => {
+    if (!viewerCountry) {
+      setViewerFile(null);
+      return;
+    }
+    let alive = true;
+    loadCountry(viewerCountry)
+      .then((file) => alive && setViewerFile(file))
+      .catch(() => alive && setViewerFile(null));
+    return () => {
+      alive = false;
+    };
+  }, [viewerCountry]);
+
   useEffect(() => {
     document.title = project?.projectName ? `${project.projectName} · Cookies Atlas` : 'Cookies Atlas';
   }, [project]);
@@ -163,7 +182,7 @@ export function App() {
   const names = useMemo<PlaceNames>(() => {
     const countries = new Map((world ?? []).map((f) => [f.properties.id, f.properties]));
     const regions = new Map<string, { en: string; fr: string }>();
-    for (const file of splits) {
+    for (const file of viewerFile ? [...splits, viewerFile] : splits) {
       for (const r of file.regions) regions.set(`${file.country}-${r.code}`, r);
       // Finer areas too (a French department), for findings that mention them.
       for (const f of file.features) {
@@ -176,7 +195,7 @@ export function App() {
       region: (country, code, l) => regions.get(`${country}-${code}`)?.[l],
       isSplit: (country) => splitSet.has(country),
     };
-  }, [world, splits, splitSet]);
+  }, [world, splits, splitSet, viewerFile]);
 
   const i18n = useMemo(() => ({ ui, t: MESSAGES[ui], c: buildCopyContext(ui, project, names) }), [ui, project, names]);
   const { t, c } = i18n;

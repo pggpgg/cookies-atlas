@@ -1,5 +1,6 @@
 import { colorOf, type ColorAssignment } from '../app/colors';
 import { ADMIN_CONFIG_URL } from '../app/project';
+import { nonGeoDefaultOf } from '../engine/diagnostics';
 import { countriesOf, subdivisionsOf, type Evaluation } from '../engine/evaluate';
 import { langKey } from '../engine/select';
 import type { AxeptioProject } from '../engine/types';
@@ -31,6 +32,8 @@ export function coverageOf(evaluation: Evaluation, id: string) {
 export function Legend({ project, evaluation, colors, isolated, internal, deadIds, today, onHover, onIsolate }: LegendProps) {
   const { t, c } = useI18n();
   const fallbackId = project.client?.cookiesSettings?.geolocationFallbackConfigId ?? null;
+  // Today's map shows the home page; the default banner may only show on other pages.
+  const defaultId = today ? nonGeoDefaultOf(project) : null;
   const abIds = new Set((project.abTests ?? []).flatMap((x) => (x.variants ?? []).map((v) => v.configId)));
 
   return (
@@ -49,7 +52,12 @@ export function Legend({ project, evaluation, colors, isolated, internal, deadId
           // Diagnostics describe location-based display on; today a site can still pin any banner.
           const never = !today && deadIds.has(id);
           const hasPages = Array.isArray(config.settings?.pages) && config.settings!.pages!.length > 0;
-          const wins = offMap && today ? t.legend.notDefault(hasPages) : t.legend.wins(coverage.countries, coverage.regions);
+          const wins =
+            offMap && today
+              ? id === defaultId
+                ? t.legend.defaultElsewhere
+                : t.legend.notDefault(hasPages)
+              : t.legend.wins(coverage.countries, coverage.regions);
           const countries = countriesOf(config);
           const subs = subdivisionsOf(config);
           const lang = langKey(config.language);

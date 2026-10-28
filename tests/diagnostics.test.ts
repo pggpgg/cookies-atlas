@@ -255,6 +255,36 @@ describe('region targeting diagnostics', () => {
     expect(over[0].data).toMatchObject({ country: 'CA', intended: ['CA-QC'], step: 'multi-country', regulation: 'ccpa', competitor: null });
   });
 
+  it('tells when a new single-country banner would only tie with the capturing one', () => {
+    const findings = run(geoOn([cfg('california', { country: ['US'], subdivision: ['US-CA'], regulation: 'ccpa', language: 'en' }), cfg('world', { language: 'en' })]), 'actual');
+    const over = ofKind(findings, 'over-capture')[0];
+    // The rest of the US is CCPA like California's banner: the regulation preference can't help there.
+    expect(over.data).toMatchObject({ country: 'US', step: 'single-country', regulations: ['ccpa', 'gpp'], tie: true });
+    const mackageOver = ofKind(run(mackage, 'actual'), 'over-capture')[0];
+    expect(mackageOver.data.tie).toBe(false);
+  });
+
+  it('only names a competitor that lists the country among others', () => {
+    const findings = run(
+      geoOn([
+        cfg('idf', { country: ['FR'], subdivision: ['FR-IDF'], regulation: 'gpdr', language: 'fr' }),
+        cfg('fr', { country: ['FR'], regulation: 'gpdr', language: 'fr' }),
+        cfg('world', { language: 'en' }),
+      ]),
+      'actual',
+    );
+    const over = ofKind(findings, 'over-capture')[0];
+    expect(over.data).toMatchObject({ capturing: ['idf'], competitor: null, tie: true });
+    // "fr" loses on list order, which its own finding explains.
+    expect(ofKind(findings, 'dead-config')[0].data).toMatchObject({ reason: 'order', by: 'idf' });
+  });
+
+  it("doesn't call a banner with only an unreachable region an over-capture", () => {
+    const findings = run(geoOn([cfg('paris', { country: ['FR'], subdivision: ['FR-75'] }), cfg('world', { language: 'en' })]), 'actual');
+    expect(ofKind(findings, 'over-capture')).toEqual([]);
+    expect(ofKind(findings, 'unreachable-subdivision')[0].configs).toEqual(['paris']);
+  });
+
   it('never evaluates codes no visitor is reported with', () => {
     const evaluation = evaluate(
       geoOn([cfg('a', { country: ['UK', 'FR'], subdivision: ['FR-75', 'US-PR', 'FR-IDF'] }), cfg('world', { language: 'en' })]),

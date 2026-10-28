@@ -315,10 +315,17 @@ describe('page rules (SDK pageMatch)', () => {
   it('reports rules the SDK would throw on instead of crashing, and treats them as no match', () => {
     expect(pageMatches(null as never, '/')).toBeNull();
     expect(pageMatches({ url: 42 as never }, '/42')).toBeNull();
-    // new RegExp(42) is fine in the SDK too
-    expect(pageMatches({ url: 42 as never, regex: true }, '/42')).toBe(true);
+    // The SDK escapes the URL before looking at `regex`, so a non-string URL throws there too.
+    expect(pageMatches({ url: 42 as never, regex: true }, '/42')).toBeNull();
     const p = project([cfg('broken', { settings: { pages: [null as never] } }), cfg('any')], null);
     expect(selectConfig(p, { countryCode: 'FR', pagePath: '/' }).config?.identifier).toBe('any');
+  });
+
+  it('reads a rule that is not an object as an empty URL, which matches every page (like the SDK)', () => {
+    expect(pageMatches('/fr' as never, '/de/shop')).toBe(true);
+    expect(pageMatches({ regex: true } as never, '/anything')).toBe(true);
+    const p = project([cfg('any'), cfg('loose', { settings: { pages: ['/fr' as never] } })], null);
+    expect(selectConfig(p, { countryCode: 'FR', pagePath: '/de' }).config?.identifier).toBe('loose');
   });
 
   it('only page-matched configs win over the default, and unmatched ones are excluded', () => {

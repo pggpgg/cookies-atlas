@@ -113,6 +113,8 @@ export interface Messages {
     wins: (countries: number, regions: number) => string;
     /** Location-based display off: a banner that isn't the default only shows when the site asks for it. */
     notDefault: (hasPageRules: boolean) => string;
+    /** Location-based display off: the default banner, when the home page has a page-rule banner of its own. */
+    defaultElsewhere: string;
     neverShown: string;
     fallback: string;
     abTest: string;

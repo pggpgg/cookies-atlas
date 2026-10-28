@@ -43,9 +43,11 @@ jobs:
           path: drift/
           if-no-files-found: ignore
       - name: Open or update the drift issue
-        if: always() && (steps.drift.outcome == 'failure' || steps.drift.outputs.changed == 'true' || steps.live.outcome == 'failure')
+        # failure() also catches a broken setup (checkout, npm ci) before the check could run.
+        if: always() && (failure() || steps.drift.outputs.changed == 'true' || steps.live.outcome == 'failure')
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }} # gh works even if checkout failed
           LIVE_OUTCOME: ${{ steps.live.outcome }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |

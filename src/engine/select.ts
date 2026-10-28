@@ -194,13 +194,14 @@ const escapeRegExp = (value: string) => value.replace(/[-[\]{}()*+?.,\\^$|#\s]/g
 /**
  * SDK `pageMatch(rule)`: tests location.pathname + location.search against the rule.
  * A plain URL is escaped and gets an optional trailing slash; nothing is anchored.
- * Returns null when the real SDK would throw: an invalid regex, a rule that isn't an object, or a
- * plain URL that isn't a string. Callers treat that as "no match".
+ * Returns null when the real SDK would throw: a missing rule, a URL that isn't a string (the SDK
+ * escapes it before even looking at `regex`), or an invalid regex. Callers treat that as "no match".
+ * A rule that isn't an object (a bare "/fr") has no url, so it matches every page, as in the SDK.
  */
 export function pageMatches(rule: PageRule, pagePath: string): boolean | null {
-  if (!rule || typeof rule !== 'object') return null;
-  const url = rule.url || '';
-  if (!rule.regex && typeof url !== 'string') return null;
+  if (rule == null) return null;
+  const url: unknown = rule.url || '';
+  if (typeof url !== 'string') return null;
   const pattern = rule.regex ? url : `${escapeRegExp(url)}${url.indexOf('?') > -1 ? '' : '/?'}`;
   try {
     return new RegExp(pattern).test(pagePath);
