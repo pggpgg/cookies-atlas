@@ -1,0 +1,395 @@
+{
+  "regulations": {
+    "Gpdr": "gpdr",
+    "UkGdpr": "uk_gdpr",
+    "Fadp": "fadp",
+    "Ccpa": "ccpa",
+    "Gpp": "gpp",
+    "Lgpd": "lgpd",
+    "Loi25": "loi25"
+  },
+  "regionTable": {
+    "countries": [
+      {
+        "internalIsoCode": "EU",
+        "isoCodes": [
+          "AT",
+          "BE",
+          "BG",
+          "HR",
+          "CY",
+          "CZ",
+          "DK",
+          "NL",
+          "EE",
+          "FI",
+          "FR",
+          "DE",
+          "GR",
+          "HU",
+          "IE",
+          "IT",
+          "LV",
+          "LT",
+          "LU",
+          "MT",
+          "PL",
+          "PT",
+          "RO",
+          "SK",
+          "SI",
+          "ES",
+          "SE",
+          "NO",
+          "MK",
+          "RS",
+          "BA",
+          "RU"
+        ],
+        "regulation": "gpdr"
+      },
+      {
+        "internalIsoCode": "GB",
+        "isoCodes": [
+          "GB"
+        ],
+        "regulation": "uk_gdpr"
+      },
+      {
+        "internalIsoCode": "CH",
+        "isoCodes": [
+          "CH"
+        ],
+        "regulation": "fadp"
+      },
+      {
+        "internalIsoCode": "US",
+        "isoCodes": [
+          "US"
+        ],
+        "regulation": "ccpa"
+      },
+      {
+        "internalIsoCode": "BR",
+        "isoCodes": [
+          "BR"
+        ],
+        "regulation": "lgpd"
+      },
+      {
+        "internalIsoCode": "CA",
+        "isoCodes": [
+          "CA"
+        ],
+        "regulation": "ccpa"
+      }
+    ],
+    "subdivisions": [
+      {
+        "internalIsoCode": "CA-QC",
+        "countryIsoCode": "CA",
+        "isoCodes": [
+          "CA-QC"
+        ],
+        "regulation": "loi25"
+      },
+      {
+        "internalIsoCode": "US-CCPA",
+        "countryIsoCode": "US",
+        "isoCodes": [
+          "US-CA",
+          "US-CO",
+          "US-CT",
+          "US-DE",
+          "US-IA",
+          "US-IN",
+          "US-MT",
+          "US-NJ",
+          "US-OR",
+          "US-TN",
+          "US-TX",
+          "US-UT",
+          "US-VA"
+        ],
+        "regulation": "ccpa"
+      },
+      {
+        "internalIsoCode": "US-GPP",
+        "countryIsoCode": "US",
+        "isoCodes": [
+          "US-AL",
+          "US-AK",
+          "US-AZ",
+          "US-AR",
+          "US-FL",
+          "US-GA",
+          "US-HI",
+          "US-ID",
+          "US-IL",
+          "US-KS",
+          "US-KY",
+          "US-LA",
+          "US-ME",
+          "US-MD",
+          "US-MA",
+          "US-MI",
+          "US-MN",
+          "US-MS",
+          "US-MO",
+          "US-NE",
+          "US-NV",
+          "US-NH",
+          "US-NM",
+          "US-NY",
+          "US-NC",
+          "US-ND",
+          "US-OH",
+          "US-OK",
+          "US-PA",
+          "US-RI",
+          "US-SC",
+          "US-SD",
+          "US-VT",
+          "US-WA",
+          "US-WV",
+          "US-WI",
+          "US-WY",
+          "US-DC",
+          "US-AS",
+          "US-GU",
+          "US-MP",
+          "US-PR",
+          "US-UM",
+          "US-VI"
+        ],
+        "regulation": "gpp"
+      }
+    ]
+  },
+  "headers": {
+    "X-Viewer-Country": true,
+    "X-Viewer-Country-Region": true
+  },
+  "blocks": {
+    "getCookiesConfig": {
+      "hash": "3bf09efa",
+      "tokens": 1545,
+      "literals": [
+        "",
+        "-",
+        "UNKNOWN",
+        "cookiesVersion",
+        "default",
+        "page",
+        "string"
+      ],
+      "properties": [
+        "_applyPostSelectionTransforms",
+        "activeABTest",
+        "allowedCountries",
+        "browserLanguage",
+        "client",
+        "concat",
+        "config",
+        "cookies",
+        "cookiesSettings",
+        "cookiesVersion",
+        "country",
+        "countryCode",
+        "documentElement",
+        "filter",
+        "find",
+        "geolocation",
+        "geolocationFallbackConfigId",
+        "identifier",
+        "includes",
+        "isArray",
+        "isBannerVisibilityEnabled",
+        "isFallback",
+        "lang",
+        "language",
+        "length",
+        "map",
+        "matchesPage",
+        "name",
+        "navigator",
+        "pageMatch",
+        "pages",
+        "push",
+        "reglementation",
+        "regulation",
+        "resolveABTestFor",
+        "settings",
+        "size",
+        "some",
+        "steps",
+        "strategy",
+        "subdivision",
+        "subdivisionCode",
+        "substring",
+        "toLowerCase",
+        "toUpperCase",
+        "trim",
+        "useDocumentLang",
+        "userLanguage"
+      ]
+    },
+    "resolveABTestFor": {
+      "hash": "2063d747",
+      "tokens": 1440,
+      "literals": [
+        "",
+        "::",
+        "[axeptio] pickAndPersistABVariant: no visitorId in context — AB test skipped",
+        "number"
+      ],
+      "properties": [
+        "abTests",
+        "activeABTest",
+        "assignment",
+        "baseConfig",
+        "ceil",
+        "charCodeAt",
+        "concat",
+        "config",
+        "configId",
+        "configIdentifier",
+        "context",
+        "cookieOptions",
+        "cookies",
+        "createdAt",
+        "defineProperties",
+        "defineProperty",
+        "endDate",
+        "expires",
+        "filter",
+        "find",
+        "floor",
+        "forEach",
+        "getOwnPropertyDescriptor",
+        "getOwnPropertyDescriptors",
+        "getTime",
+        "identifier",
+        "imul",
+        "isConfigExplicitlyRouted",
+        "keys",
+        "length",
+        "map",
+        "min",
+        "now",
+        "remove",
+        "settings",
+        "some",
+        "testId",
+        "toString",
+        "tokenInstance",
+        "variantId",
+        "variants",
+        "visitorId",
+        "warn"
+      ]
+    },
+    "geoHelpers": {
+      "hash": "bd9b4c26",
+      "tokens": 392,
+      "literals": [
+        "",
+        "-"
+      ],
+      "properties": [
+        "concat",
+        "countries",
+        "filter",
+        "find",
+        "includes",
+        "isoCodes",
+        "language",
+        "length",
+        "regulation",
+        "subdivisions",
+        "substring",
+        "test",
+        "toLowerCase"
+      ]
+    },
+    "abTargeting": {
+      "hash": "5040bbfb",
+      "tokens": 1055,
+      "literals": [
+        "[axeptio] Failed to write AB test cookie",
+        "axeptio_ab",
+        "object",
+        "page",
+        "session"
+      ],
+      "properties": [
+        "apply",
+        "configId",
+        "configIdentifier",
+        "context",
+        "country",
+        "countryCode",
+        "domain",
+        "endDate",
+        "enumerable",
+        "expires",
+        "filter",
+        "findIndex",
+        "forEach",
+        "get",
+        "getOwnPropertyDescriptor",
+        "getOwnPropertySymbols",
+        "getTime",
+        "has",
+        "isArray",
+        "isConfigExplicitlyRouted",
+        "keys",
+        "language",
+        "length",
+        "now",
+        "parse",
+        "push",
+        "regulation",
+        "remove",
+        "sameSite",
+        "secure",
+        "set",
+        "some",
+        "startDate",
+        "stringify",
+        "substring",
+        "testId",
+        "toLowerCase",
+        "userCookiesDomain",
+        "userCookiesDuration",
+        "userCookiesSameSite",
+        "userCookiesSecure",
+        "variant",
+        "variants",
+        "warn"
+      ]
+    },
+    "pageMatch": {
+      "hash": "058db259",
+      "tokens": 119,
+      "literals": [
+        "",
+        "/?",
+        "?",
+        "\\\\$&"
+      ],
+      "properties": [
+        "concat",
+        "indexOf",
+        "location",
+        "match",
+        "pathname",
+        "regex",
+        "replace",
+        "search",
+        "url"
+      ]
+    }
+  },
+  "problems": []
+}

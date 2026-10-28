@@ -1,0 +1,82 @@
+{
+  "projectId": "683f03ffa5e569f3bae4483d",
+  "projectName": "Bicyclesquilicot V2",
+  "publishedAt": "2025-06-18T16:14:48.026Z",
+  "cookies": [
+    {
+      "identifier": "683f03ffa5e569f3bae4483e",
+      "name": "fr-ca-qc-04-10-2024",
+      "title": "FR-CA-QC",
+      "language": "fr",
+      "country": "CA",
+      "subdivision": "QC",
+      "regulation": "loi25",
+      "published": true,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        },
+        {
+          "name": "social_networks",
+          "layout": "category"
+        },
+        {
+          "name": "analytics",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        }
+      ],
+      "settings": {
+        "pages": []
+      }
+    },
+    {
+      "identifier": "683f03ffa5e569f3bae4483f",
+      "name": "en-ca-qc-04-10-2024",
+      "title": "EN-CA-QC",
+      "language": "en",
+      "country": "CA",
+      "subdivision": "QC",
+      "regulation": "loi25",
+      "published": true,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        },
+        {
+          "name": "social_networks",
+          "layout": "category"
+        },
+        {
+          "name": "analytics",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        }
+      ],
+      "settings": {
+        "pages": [
+          {
+            "url": "/en.*",
+            "regex": true
+          }
+        ]
+      }
+    }
+  ]
+}

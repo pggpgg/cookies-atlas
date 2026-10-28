@@ -1,0 +1,45 @@
+{
+  "name": "cookies-atlas",
+  "private": true,
+  "version": "1.0.0",
+  "description": "See which Axeptio cookie configuration is served in each country and region, why, and what's misconfigured.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "build:geo": "node scripts/build-geo.mjs",
+    "sdk:snapshot": "node scripts/sdk-drift/run.mjs --write sdk-snapshot/snapshot.json",
+    "sdk:check": "node scripts/sdk-drift/run.mjs --compare sdk-snapshot/snapshot.json --out drift"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@fontsource/figtree": "^5.3.0",
+    "@fontsource/source-sans-3": "^5.3.1",
+    "d3-geo": "^3.1.1",
+    "d3-selection": "^3.0.0",
+    "d3-zoom": "^3.0.0",
+    "preact": "^11.1.0",
+    "topojson-client": "^3.1.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "@types/d3-geo": "^3.1.1",
+    "@types/d3-selection": "^3.0.12",
+    "@types/d3-zoom": "^3.0.9",
+    "@types/geojson": "^7946.0.16",
+    "@types/node": "^26.6.6",
+    "@types/topojson-client": "^3.1.5",
+    "@types/topojson-specification": "^1.0.5",
+    "mapshaper": "^0.7.100",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}

@@ -1,0 +1,353 @@
+{
+  "projectId": "624d5e22e4776e1f019014e2",
+  "projectName": "Axeptio Prod",
+  "publishedAt": "2026-07-21T15:17:17.483Z",
+  "cookies": [
+    {
+      "identifier": "624d5e22b4ce4bc760f45461",
+      "name": "axeptio-prod-en",
+      "title": "English Axeptio Prod Cookies",
+      "language": "en",
+      "country": "FR",
+      "regulation": "gpdr",
+      "isLive": true,
+      "partOfABTest": false,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "Experience",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        }
+      ],
+      "settings": {
+        "pages": []
+      }
+    },
+    {
+      "identifier": "624d5e22f021a3d687998e4f",
+      "name": "axeptio-prod-fr",
+      "title": "French Axeptio Prod Cookies",
+      "language": "fr",
+      "country": "FR",
+      "regulation": "gpdr",
+      "isLive": true,
+      "published": true,
+      "partOfABTest": false,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "experience",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        }
+      ],
+      "settings": {
+        "pages": []
+      }
+    },
+    {
+      "identifier": "65ae8f5caa40a66a9dc0d15d",
+      "name": "axeptio-prod-fr-ca",
+      "title": "French Canada Axeptio Prod Cookies",
+      "language": "fr",
+      "country": "CA",
+      "subdivision": "CA-QC",
+      "regulation": "loi25",
+      "isLive": true,
+      "partOfABTest": false,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "experience",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        }
+      ],
+      "settings": {
+        "pages": []
+      }
+    },
+    {
+      "identifier": "67d7f18b74f46dd2ffc2be56",
+      "name": "axeptio-prod-de",
+      "title": "German Axeptio Prod Cookies",
+      "language": "de",
+      "country": "DE",
+      "regulation": "gpdr",
+      "isLive": true,
+      "partOfABTest": false,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "experience",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        }
+      ],
+      "settings": {
+        "pages": []
+      }
+    },
+    {
+      "identifier": "67d7f4b9d930c06316a7d09c",
+      "name": "axeptio-prod-nl",
+      "title": "Dutch Axeptio Prod Cookies",
+      "language": "nl",
+      "country": "NL",
+      "regulation": "gpdr",
+      "isLive": true,
+      "partOfABTest": false,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "experience",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        }
+      ],
+      "settings": {
+        "pages": []
+      }
+    },
+    {
+      "identifier": "68109c43696b28b2fef0265c",
+      "name": "axeptio-prod-es",
+      "title": "Spanish Axeptio Prod Cookies",
+      "language": "es",
+      "country": "ES",
+      "regulation": "gpdr",
+      "isLive": true,
+      "partOfABTest": false,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "experience",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        }
+      ],
+      "settings": {
+        "pages": []
+      }
+    },
+    {
+      "identifier": "68109f537e89f89b500763da",
+      "name": "axeptio-prod-it",
+      "title": "Italian Axeptio Prod Cookies",
+      "language": "it",
+      "country": "IT",
+      "regulation": "gpdr",
+      "isLive": true,
+      "partOfABTest": false,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "experience",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        }
+      ],
+      "settings": {
+        "pages": []
+      }
+    },
+    {
+      "identifier": "6895f3fe854d3ee119df63cd",
+      "name": "axeptio-prod-pt",
+      "title": "Portuguese Axeptio Prod Cookies ",
+      "language": "pt",
+      "country": "PT",
+      "regulation": "gpdr",
+      "isLive": true,
+      "published": true,
+      "partOfABTest": false,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "experience",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        }
+      ],
+      "settings": {
+        "pages": []
+      }
+    },
+    {
+      "identifier": "6899bd75a0f3824d6288e4aa",
+      "name": "axeptio prod-en-GB",
+      "title": "BO English Axeptio Prod Cookies",
+      "language": "en",
+      "country": "FR",
+      "regulation": "gpdr",
+      "isLive": true,
+      "partOfABTest": false,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "experience",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        }
+      ],
+      "settings": {
+        "pages": []
+      }
+    },
+    {
+      "identifier": "6899bd82a0e8b2c6ad9acac7",
+      "name": "axeptio prod-pt-BR",
+      "title": "BO Portuguese Axeptio Prod Cookies ",
+      "language": "pt",
+      "country": "PT",
+      "regulation": "gpdr",
+      "isLive": true,
+      "published": true,
+      "partOfABTest": false,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "experience",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        }
+      ],
+      "settings": {
+        "pages": []
+      }
+    },
+    {
+      "identifier": "6899bd89a0f3824d6288e4ad",
+      "name": "axeptio prod-fr-FR",
+      "title": "BO French Axeptio Prod Cookies",
+      "language": "fr",
+      "country": "FR",
+      "regulation": "gpdr",
+      "isLive": true,
+      "published": true,
+      "partOfABTest": false,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "experience",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        }
+      ],
+      "settings": {
+        "pages": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,286 @@
+{
+  "projectId": "691245e5b48e4a03c7b9c5c5",
+  "projectName": "Mackage all countries",
+  "publishedAt": "2026-09-25T13:13:39.056Z",
+  "client": {
+    "cookiesSettings": {
+      "geolocation": true,
+      "geolocationFallbackConfigId": "6913a674b1b71620d7b06fb7"
+    }
+  },
+  "cookies": [
+    {
+      "identifier": "691245e5b48e4a03c7b9c5c8",
+      "name": "CA-QC EN",
+      "title": "CA-QC EN",
+      "language": "en",
+      "country": [
+        "CA"
+      ],
+      "subdivision": [
+        "CA-QC"
+      ],
+      "regulation": "loi25",
+      "isLive": true,
+      "published": true,
+      "partOfABTest": false,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        },
+        {
+          "name": "analytics",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        }
+      ],
+      "settings": {
+        "pages": []
+      }
+    },
+    {
+      "identifier": "6913a57eb48e4a03c7b9c9ed",
+      "name": "CA-QC FR",
+      "title": "CA-QC FR",
+      "language": "fr",
+      "country": [
+        "CA"
+      ],
+      "subdivision": [
+        "CA-QC"
+      ],
+      "regulation": "loi25",
+      "isLive": true,
+      "published": true,
+      "partOfABTest": false,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        },
+        {
+          "name": "analytics",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        }
+      ],
+      "settings": {
+        "pages": []
+      }
+    },
+    {
+      "identifier": "6913a674b1b71620d7b06fb7",
+      "name": "EN-US et fallback",
+      "title": "EN-US et fallback",
+      "language": "en",
+      "country": [
+        "US",
+        "CA"
+      ],
+      "regulation": "ccpa",
+      "isLive": true,
+      "published": true,
+      "partOfABTest": false,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        },
+        {
+          "name": "analytics",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        }
+      ],
+      "settings": {
+        "pages": []
+      }
+    },
+    {
+      "identifier": "69c2ee3bae821a6127694272",
+      "name": "UK EN",
+      "title": "UK EN",
+      "language": "en",
+      "country": [
+        "GB"
+      ],
+      "regulation": "uk_gdpr",
+      "isLive": true,
+      "published": true,
+      "partOfABTest": false,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        },
+        {
+          "name": "analytics",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        }
+      ],
+      "settings": {
+        "pages": []
+      }
+    },
+    {
+      "identifier": "6a3362f359acc4e5222b862e",
+      "name": "EU EN",
+      "title": "EU EN",
+      "language": "en",
+      "country": [
+        "AT",
+        "BE",
+        "BG",
+        "CY",
+        "CZ",
+        "DE",
+        "DK",
+        "EE",
+        "ES",
+        "FI",
+        "FR",
+        "GR",
+        "HR",
+        "HU",
+        "IE",
+        "IT",
+        "LT",
+        "LU",
+        "LV",
+        "MT",
+        "NL",
+        "PL",
+        "PT",
+        "RO",
+        "SE",
+        "SI",
+        "SK",
+        "IS",
+        "LI",
+        "NO",
+        "GB",
+        "CH"
+      ],
+      "regulation": "gpdr",
+      "isLive": true,
+      "published": true,
+      "partOfABTest": false,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        },
+        {
+          "name": "analytics",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        }
+      ],
+      "settings": {
+        "pages": []
+      }
+    },
+    {
+      "identifier": "6a33633e59acc4e5222b8630",
+      "name": "EU FR",
+      "title": "EU FR",
+      "language": "fr",
+      "country": [
+        "AT",
+        "BE",
+        "BG",
+        "CY",
+        "CZ",
+        "DE",
+        "DK",
+        "EE",
+        "ES",
+        "FI",
+        "FR",
+        "GR",
+        "HR",
+        "HU",
+        "IE",
+        "IT",
+        "LT",
+        "LU",
+        "LV",
+        "MT",
+        "NL",
+        "PL",
+        "PT",
+        "RO",
+        "SE",
+        "SI",
+        "SK",
+        "IS",
+        "LI",
+        "NO",
+        "GB",
+        "CH"
+      ],
+      "regulation": "gpdr",
+      "isLive": true,
+      "published": true,
+      "partOfABTest": false,
+      "steps": [
+        {
+          "name": "welcome",
+          "layout": "welcome"
+        },
+        {
+          "name": "info",
+          "layout": "info"
+        },
+        {
+          "name": "analytics",
+          "layout": "category"
+        },
+        {
+          "name": "targeted_ads",
+          "layout": "category"
+        }
+      ],
+      "settings": {
+        "pages": []
+      }
+    }
+  ]
+}
