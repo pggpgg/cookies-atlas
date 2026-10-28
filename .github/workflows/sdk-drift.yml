@@ -1,0 +1,43 @@
+name: SDK drift check
+
+# Weekly: download Axeptio's sdk.js and compare the parts Cookies Atlas mirrors
+# (region table, regulation enum, selection code) with sdk-snapshot/snapshot.json.
+on:
+  schedule:
+    - cron: '23 9 * * 1' # Mondays, 09:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Compare sdk.js with the snapshot
+        id: drift
+        run: node scripts/sdk-drift/run.mjs --compare sdk-snapshot/snapshot.json --out drift
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sdk-drift
+          path: drift/
+          if-no-files-found: ignore
+      - name: Open or update the drift issue
+        if: steps.drift.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create sdk-drift --color FBCA04 --description "Axeptio's SDK changed" --force
+          existing=$(gh issue list --label sdk-drift --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file drift/report.md
+          else
+            gh issue create --title "Axeptio's SDK changed: check Cookies Atlas" --label sdk-drift --body-file drift/report.md
+          fi
