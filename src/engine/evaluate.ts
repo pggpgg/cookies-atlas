@@ -54,6 +54,12 @@ export interface EvaluateOptions {
 
 export const regionKey = (country: string, subdivision: string | null) => (subdivision ? `${country}-${subdivision}` : country);
 
+/**
+ * The SDK table lists US territories as US subdivisions, but CDNs report visitors there with
+ * the territory's own country code (PR, GU...), so "US-PR" never happens. Skip them.
+ */
+export const UNREACHABLE_TABLE_SUBDIVISIONS: ReadonlySet<string> = new Set(['US-AS', 'US-GU', 'US-MP', 'US-PR', 'US-UM', 'US-VI']);
+
 const asStrings = (value: StringOrList): string[] =>
   (Array.isArray(value) ? value : [value]).filter((v): v is string => typeof v === 'string').map((v) => v.trim().toUpperCase()).filter(Boolean);
 
@@ -96,6 +102,7 @@ export function regionsToEvaluate(project: AxeptioProject, extra: RegionRequest[
   }
   for (const sub of REGION_TABLE.subdivisions) {
     for (const code of sub.isoCodes) {
+      if (UNREACHABLE_TABLE_SUBDIVISIONS.has(code)) continue;
       const [country, region] = code.split('-');
       add(country, region);
     }

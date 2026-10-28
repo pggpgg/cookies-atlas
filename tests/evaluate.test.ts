@@ -23,6 +23,12 @@ describe('evaluateProject', () => {
     expect(evaluation.regions.size).toBeGreaterThan(290);
   });
 
+  it('skips US territories the SDK lists as subdivisions (CDNs report them as countries)', () => {
+    expect(evaluation.regions.has('US-PR')).toBe(false);
+    expect(evaluation.regions.has('PR')).toBe(true);
+    expect(evaluation.regions.has('US-DC')).toBe(true);
+  });
+
   it('records one winner per language and the distinct winners in config order', () => {
     const fr = evaluation.regions.get('FR')!;
     expect(fr.step).toBe('multi-country');

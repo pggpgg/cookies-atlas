@@ -36,6 +36,10 @@ const UNIT_OVERRIDES = {
   'Southern Patagonian Ice Field': 'AR',
   'Wake Island': 'UM',
 };
+/** Country names that are too long for tooltips and tables. */
+const COUNTRY_NAME_OVERRIDES = {
+  US: { en: 'United States', fr: 'États-Unis' },
+};
 /** Codes we don't draw. */
 const SKIP_CODES = new Set(['AQ']);
 
@@ -97,7 +101,7 @@ async function buildCountries() {
     let code = /^[A-Z]{2}$/.test(p.ISO_A2_EH) ? p.ISO_A2_EH : UNIT_OVERRIDES[p.NAME_EN] || UNIT_OVERRIDES[p.NAME] || UNIT_OVERRIDES[p.ADMIN];
     if (!code || SKIP_CODES.has(code)) continue;
     // Map units split some countries (GB nations, Belgian regions), so prefer the country's own name.
-    const name = names[code] ?? { en: p.NAME_EN || p.NAME, fr: p.NAME_FR || p.NAME_EN || p.NAME };
+    const name = COUNTRY_NAME_OVERRIDES[code] ?? names[code] ?? { en: p.NAME_EN || p.NAME, fr: p.NAME_FR || p.NAME_EN || p.NAME };
     features.push({ type: 'Feature', properties: { id: code, en: name.en, fr: name.fr }, geometry: f.geometry });
   }
 

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="description" content="See which Axeptio cookie banner each country and region gets, why, and what looks misconfigured." />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <title>Cookies Atlas</title>
+    <script>
+      // Apply the saved theme before first paint (no flash).
+      try {
+        var theme = localStorage.getItem('cookies-atlas:theme');
+        if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript>Cookies Atlas needs JavaScript to read Axeptio project files.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
