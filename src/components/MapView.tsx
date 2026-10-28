@@ -4,7 +4,7 @@ import { select } from 'd3-selection';
 import 'd3-transition';
 import { zoom as d3zoom, zoomIdentity, type ZoomBehavior } from 'd3-zoom';
 import type { Ref } from 'preact';
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { colorOf, type ColorAssignment } from '../app/colors';
 import type { CountryFile, CountryProps } from '../app/geo';
 import type { ViewerLocation } from '../app/project';
@@ -30,6 +30,8 @@ interface MapItem {
   name: { en: string; fr: string };
   d: string;
   isSubdivision: boolean;
+  /** A split country's own shape, drawn under its subdivisions only to catch the pointer in coastline slivers. */
+  underlay: boolean;
   centroid: [number, number];
 }
 
@@ -95,6 +97,7 @@ export function MapView(props: MapViewProps) {
         name: { en: f.properties.en, fr: f.properties.fr },
         d,
         isSubdivision: false,
+        underlay: splitCountries.has(cc),
         centroid: path.centroid(f) as [number, number],
       });
     }
@@ -114,6 +117,7 @@ export function MapView(props: MapViewProps) {
           name: { en: f.properties.en, fr: f.properties.fr ?? f.properties.en },
           d,
           isSubdivision: true,
+          underlay: false,
           centroid: path.centroid(f) as [number, number],
         });
       });
@@ -151,6 +155,7 @@ export function MapView(props: MapViewProps) {
   const highlightSet = useMemo(() => (highlight ? new Set(highlight) : null), [highlight]);
   const isDimmed = (index: number) => {
     const { item, outcome } = resolved[index];
+    if (item.underlay) return false;
     if (focus) return !fills[index].winners.includes(focus);
     if (highlightSet) {
       return !(
@@ -208,8 +213,8 @@ export function MapView(props: MapViewProps) {
     return item.centroid;
   }, [items, viewer]);
 
-  // Keep the pin where it belongs when it changes after a zoom.
-  useEffect(() => {
+  // Keep the pin where it belongs when it changes after a zoom (before paint, so it never jumps).
+  useLayoutEffect(() => {
     const svg = localSvgRef.current;
     if (!svg || !pinRef.current || !pin) return;
     const tr = (svg as unknown as { __zoom?: typeof zoomIdentity }).__zoom ?? zoomIdentity;
@@ -240,7 +245,8 @@ export function MapView(props: MapViewProps) {
     const index = (event.target as Element | null)?.getAttribute?.('data-index');
     if (index == null) return;
     const { item } = resolved[Number(index)];
-    props.onSelect(item.isSubdivision ? item.ownKey : item.country);
+    // Visitors are located by first-level region: a department simulates a visitor in its region.
+    props.onSelect(item.isSubdivision ? (item.parentKey ?? item.ownKey) : item.country);
   };
 
   const paths = useMemo(
@@ -249,9 +255,10 @@ export function MapView(props: MapViewProps) {
         <path
           key={item.id}
           data-index={index}
+          data-key={item.ownKey}
           d={item.d}
-          class={`region${item.isSubdivision ? ' sub' : ''}${fills[index].indirect ? ' indirect' : ''}${isDimmed(index) ? ' dimmed' : ''}`}
-          style={{ fill: fills[index].fill }}
+          class={`region${item.isSubdivision ? ' sub' : ''}${item.underlay ? ' underlay' : ''}${fills[index].indirect ? ' indirect' : ''}${isDimmed(index) ? ' dimmed' : ''}`}
+          style={item.underlay ? undefined : { fill: fills[index].fill }}
         />
       )),
     // eslint-disable-next-line react-hooks/exhaustive-deps

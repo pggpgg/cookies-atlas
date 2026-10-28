@@ -312,6 +312,15 @@ describe('page rules (SDK pageMatch)', () => {
     expect(pageMatches({ url: '(', regex: true }, '/')).toBeNull();
   });
 
+  it('reports rules the SDK would throw on instead of crashing, and treats them as no match', () => {
+    expect(pageMatches(null as never, '/')).toBeNull();
+    expect(pageMatches({ url: 42 as never }, '/42')).toBeNull();
+    // new RegExp(42) is fine in the SDK too
+    expect(pageMatches({ url: 42 as never, regex: true }, '/42')).toBe(true);
+    const p = project([cfg('broken', { settings: { pages: [null as never] } }), cfg('any')], null);
+    expect(selectConfig(p, { countryCode: 'FR', pagePath: '/' }).config?.identifier).toBe('any');
+  });
+
   it('only page-matched configs win over the default, and unmatched ones are excluded', () => {
     const p = project(
       [cfg('fr-only', { settings: { pages: [{ url: '/fr' }] } }), cfg('any'), cfg('en-only', { settings: { pages: [{ url: '/en' }] } })],

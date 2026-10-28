@@ -34,7 +34,7 @@ function parseArgs(argv) {
 
 async function loadSource(args) {
   if (args.source) return fs.readFileSync(args.source, 'utf8');
-  const res = await fetch(SDK_URL, { headers: { 'user-agent': 'cookies-atlas-drift-check' } });
+  const res = await fetch(SDK_URL, { headers: { 'user-agent': 'cookies-atlas-drift-check' }, signal: AbortSignal.timeout(60_000) });
   if (!res.ok) throw new Error(`Download failed: HTTP ${res.status}`);
   return res.text();
 }
@@ -45,7 +45,23 @@ if (!args.write && !args.compare) {
   process.exit(64);
 }
 
-const source = await loadSource(args);
+let source;
+try {
+  source = await loadSource(args);
+} catch (err) {
+  // A check that can't run must say so: report it as a change, so the workflow opens an issue.
+  const message = `Could not load ${args.source ?? SDK_URL}: ${err instanceof Error ? err.message : String(err)}`;
+  console.error(message);
+  if (args.compare && args.out) {
+    fs.mkdirSync(args.out, { recursive: true });
+    fs.writeFileSync(
+      path.join(args.out, 'report.md'),
+      `## Cookies Atlas SDK drift check\n\nThe check couldn't run: ${message}.\n\nIf this keeps happening, check that the SDK still lives at ${SDK_URL}.\n`,
+    );
+  }
+  if (args.compare && process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, 'changed=true\n');
+  process.exit(1);
+}
 const snapshot = extractSdkSnapshot(source);
 
 if (args.write) {

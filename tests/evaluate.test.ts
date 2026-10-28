@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateProject, languagesOf, outcomeForFeature, OTHER_LANGUAGE, winnersFor } from '../src/engine/evaluate';
+import { evaluateProject, languagesOf, outcomeForFeature, OTHER_LANGUAGE, reportedInstead, winnersFor } from '../src/engine/evaluate';
 import type { AxeptioProject } from '../src/engine/types';
 import mackageJson from './fixtures/mackage.json';
 import quilicotJson from './fixtures/quilicot.json';
@@ -65,6 +65,18 @@ describe('evaluateProject', () => {
     expect(outcomeForFeature(evaluation, 'ZZ')).toBeUndefined();
   });
 
+  it('paints a finer feature with its reported region, never with its own code', () => {
+    const cfg = (identifier: string, subdivision: string) => ({ identifier, name: identifier, subdivision, steps: [{ name: 'welcome' }] });
+    const project: AxeptioProject = {
+      client: { cookiesSettings: { geolocation: true } },
+      cookies: [cfg('idf', 'FR-IDF'), cfg('paris', 'FR-75')],
+    };
+    const ev = evaluateProject(project, { mode: 'actual' });
+    expect(ev.regions.has('FR-75')).toBe(false);
+    expect(outcomeForFeature(ev, 'FR', '75', 'IDF')!.winners).toEqual(['idf']);
+    expect(outcomeForFeature(ev, 'FR', '13', 'PAC')!.key).toBe('FR');
+  });
+
   it('previews a geolocation-off project as if it were on', () => {
     const today = evaluateProject(quilicot, { mode: 'actual' });
     const preview = evaluateProject(quilicot, { mode: 'preview' });
@@ -75,5 +87,21 @@ describe('evaluateProject', () => {
     expect(preview.regions.get('CA')!.winners).toEqual([fr, en]);
     expect(preview.regions.get('CA')!.step).toBe('single-country');
     expect(preview.regions.get('JP')!.step).toBe('default');
+  });
+});
+
+describe('reportedInstead', () => {
+  it('knows where visitors in unreachable codes are reported', () => {
+    expect(reportedInstead('FR-75')).toEqual({ key: 'FR-IDF', level: 'region' });
+    expect(reportedInstead('GB-KEN')).toEqual({ key: 'GB-ENG', level: 'region' });
+    expect(reportedInstead('IT-MI')).toEqual({ key: 'IT-25', level: 'region' });
+    expect(reportedInstead('ES-NA')).toEqual({ key: 'ES-NC', level: 'region' });
+    expect(reportedInstead('US-PR')).toEqual({ key: 'PR', level: 'country' });
+  });
+
+  it('leaves first-level and unknown codes alone', () => {
+    for (const key of ['FR-IDF', 'CA-QC', 'US-CA', 'ES-NC', 'ES-ML', 'GW-BS', 'BW-GA', 'MV-MLE', 'XX-YY', 'FR', 'QC']) {
+      expect(reportedInstead(key)).toBeUndefined();
+    }
   });
 });

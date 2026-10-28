@@ -38,7 +38,9 @@ export async function fetchProject(id: string, signal?: AbortSignal): Promise<Lo
   let project: AxeptioProject;
   try {
     project = (await res.json()) as AxeptioProject;
-  } catch {
+  } catch (err) {
+    // Aborted while reading the body: not a broken file.
+    if (signal?.aborted) throw err;
     throw Object.assign(new Error('invalid'), { code: 'invalid' as LoadError });
   }
   // Unknown or never-published IDs come back as 200 {"isEmpty": true}.

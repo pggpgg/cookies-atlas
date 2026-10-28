@@ -35,6 +35,8 @@ export function App() {
   const [ui, setUi] = useState<UiLanguage>(initial.ui ?? detectUiLanguage());
   const [theme, setTheme] = useState<ThemeChoice>(readTheme);
   const [projectId, setProjectId] = useState(initial.project ?? '');
+  /** Bumped to fetch the same project again (a retry, or a fresh look after publishing). */
+  const [reload, setReload] = useState(0);
   const [loaded, setLoaded] = useState<LoadedProject | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<LoadError | null>(null);
@@ -94,21 +96,26 @@ export function App() {
       return;
     }
     const controller = new AbortController();
+    const stale = () => controller.signal.aborted; // a newer request took over
     setLoading(true);
     setError(null);
     fetchProject(projectId, controller.signal)
       .then((result) => {
+        if (stale()) return;
         setLoaded(result);
+        setError(null);
         setRecent(rememberProject({ id: projectId, name: result.project.projectName ?? projectId }));
       })
       .catch((err) => {
-        if ((err as Error).name === 'AbortError') return;
+        if (stale() || (err as Error).name === 'AbortError') return;
         setLoaded(null);
         setError(((err as { code?: LoadError }).code ?? 'network') as LoadError);
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!stale()) setLoading(false);
+      });
     return () => controller.abort();
-  }, [projectId]);
+  }, [projectId, reload]);
 
   // Subdivision files for the countries drawn split (CA, US, and any country a banner targets by region).
   useEffect(() => {
@@ -156,7 +163,14 @@ export function App() {
   const names = useMemo<PlaceNames>(() => {
     const countries = new Map((world ?? []).map((f) => [f.properties.id, f.properties]));
     const regions = new Map<string, { en: string; fr: string }>();
-    for (const file of splits) for (const r of file.regions) regions.set(`${file.country}-${r.code}`, r);
+    for (const file of splits) {
+      for (const r of file.regions) regions.set(`${file.country}-${r.code}`, r);
+      // Finer areas too (a French department), for findings that mention them.
+      for (const f of file.features) {
+        const key = f.properties.code ? `${file.country}-${f.properties.code}` : null;
+        if (key && !regions.has(key)) regions.set(key, { en: f.properties.en, fr: f.properties.fr ?? f.properties.en });
+      }
+    }
     return {
       country: (code, l) => countries.get(code)?.[l],
       region: (country, code, l) => regions.get(`${country}-${code}`)?.[l],
@@ -214,15 +228,16 @@ export function App() {
 
   // --- Actions --------------------------------------------------------------------------------
   const openProject = (id: string) => {
+    if (id === projectId) {
+      // Same ID: fetch it again (a retry, or the latest published version), keeping the view.
+      setReload((n) => n + 1);
+      return;
+    }
     setIsolated(null);
     setActiveFinding(null);
     setModeChoice(undefined);
     setMapLanguage('all');
-    if (id === projectId && error) {
-      // Retry the same ID.
-      setProjectId('');
-      setTimeout(() => setProjectId(id), 0);
-    } else setProjectId(id);
+    setProjectId(id);
   };
 
   const flashCopied = (what: 'map' | 'scenario') => {
@@ -234,7 +249,8 @@ export function App() {
     const state: UrlState = scenario
       ? { ...urlState, tab: 'simulator', region: simRegion, blang: sim.blang || undefined, hlang: sim.hlang, logic: sim.logic }
       : urlState;
-    const url = shareUrl(state);
+    // Links get shared with clients: never pass the internal (admin links) mode along.
+    const url = shareUrl({ ...state, internal: false });
     try {
       await navigator.clipboard.writeText(url);
     } catch {
@@ -307,6 +323,7 @@ export function App() {
   };
 
   const geoOffFinding = findings.find((f) => f.kind === 'geolocation-off');
+  const deadIds = useMemo(() => new Set(findings.filter((f) => f.kind === 'dead-config').map((f) => f.configs[0])), [findings]);
 
   // --- Render ---------------------------------------------------------------------------------
   return (
@@ -430,6 +447,8 @@ export function App() {
                         colors={colors}
                         isolated={isolated}
                         internal={internal}
+                        deadIds={deadIds}
+                        today={!geolocationOn && mode === 'actual'}
                         onHover={setHovered}
                         onIsolate={isolate}
                       />

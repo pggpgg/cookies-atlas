@@ -62,10 +62,10 @@ describe.skipIf(!LIVE)('engine vs the live sdk.js', () => {
       sdk = buildSdkHarness(fs.readFileSync(process.env.SDK_SOURCE, 'utf8'));
       return;
     }
-    const res = await fetch('https://static.axept.io/sdk.js');
+    const res = await fetch('https://static.axept.io/sdk.js', { signal: AbortSignal.timeout(25_000) });
     expect(res.ok).toBe(true);
     sdk = buildSdkHarness(await res.text());
-  });
+  }, 30_000);
 
   it('agrees with the SDK on the regulation of every region', () => {
     const mismatches = [];

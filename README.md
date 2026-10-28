@@ -22,8 +22,9 @@ is a world map, a visitor simulator that explains each step, and diagnostics wri
   and the SDK's steps in order, in plain words.
 - **Diagnostics.** Banners that can never show, region banners that capture a whole country,
   consent-first regions getting an opt-out banner, listings that never win, malformed region or
-  country codes, missing fallback, banner-visibility settings, running A/B tests. Each one explains
-  the mechanism and the fix.
+  country codes, region codes no visitor is ever located in (a French department instead of its
+  region, `US-PR` instead of the country `PR`), missing fallback, banner-visibility settings,
+  running A/B tests. Each one explains the mechanism and the fix.
 - **Location-based display off?** You see what visitors get today, plus a preview of the map as if it
   were on.
 - **Table** of every place (the accessible twin of the map), **PNG export**, **shareable links**,
@@ -44,7 +45,9 @@ section 3):
    first banner in the list.
 
 The visitor's location comes from the `X-Viewer-Country` and `X-Viewer-Country-Region` headers that
-Axeptio's CDN adds to the project file.
+Axeptio's CDN adds to the project file. The region is always a first-level one (Île-de-France, not
+Paris; England, not Kent), and US territories come through as countries, so the map paints finer
+areas with their region's banner and never evaluates codes no visitor can have.
 
 ## Using it
 
@@ -76,7 +79,7 @@ npm run dev        # http://localhost:5173
 npm test           # engine, diagnostics, region table and drift-check tests
 npm run test:live  # replay the live sdk.js against the engine (needs access to static.axept.io)
 npm run build      # type-check + production build in dist/
-npm run build:geo  # regenerate public/data from Natural Earth (downloads ~65 MB once)
+npm run build:geo  # regenerate public/data and the engine's place lists from Natural Earth (~65 MB once)
 ```
 
 Stack: Vite, TypeScript, Preact, d3-geo, Vitest. Map data: Natural Earth 1:10m (public domain),

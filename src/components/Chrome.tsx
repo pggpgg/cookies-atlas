@@ -173,7 +173,7 @@ export function Summary(props: {
   };
 
   const viewerPlace = props.viewer?.country
-    ? c.place(props.viewer.region ? `${props.viewer.country}-${props.viewer.region}` : props.viewer.country)
+    ? c.placeIn(props.viewer.region ? `${props.viewer.country}-${props.viewer.region}` : props.viewer.country)
     : null;
   const viewerConfig = props.viewerSelection?.config ?? null;
 

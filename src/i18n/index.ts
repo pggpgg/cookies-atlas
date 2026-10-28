@@ -17,6 +17,7 @@ export function detectUiLanguage(): UiLanguage {
 
 export interface PlaceNames {
   country: (code: string, ui: UiLanguage) => string | undefined;
+  /** First-level regions, and finer areas drawn on the map (a French department). */
   region: (country: string, code: string, ui: UiLanguage) => string | undefined;
   /** Countries drawn split on the map: a bare country key then means "the rest of it". */
   isSplit: (country: string) => boolean;
@@ -51,13 +52,15 @@ export function buildCopyContext(ui: UiLanguage, project: AxeptioProject | null,
   }
   const list = (items: string[]) => (listFormat ? listFormat.format(items) : items.join(', '));
   const country = (code: string) => names.country(code, ui) ?? intlName(ui, 'region', code) ?? code;
-  const place = (key: string) => {
+  /** `inText`: the place sits in a sentence ("the United States"), not in a label. */
+  const place = (key: string, inText = false) => {
     const [cc, sub] = key.split('-');
-    if (!sub) return names.isSplit(cc) ? t.map.rest(country(cc)) : country(cc);
+    const lead = inText ? t.article(country(cc)) : country(cc);
+    if (!sub) return names.isSplit(cc) ? t.map.rest(lead) : lead;
     const region = names.region(cc, sub, ui);
-    return region ? `${region} (${country(cc)})` : `${country(cc)} (${sub})`;
+    return region ? `${region} (${country(cc)})` : `${lead} (${sub})`;
   };
-  const places = (keys: string[], max = 5) => {
+  const places = (keys: string[], max = 5, inText = false) => {
     // Many regions of one country collapse to "Country (12 regions)".
     const byCountry = new Map<string, string[]>();
     const singles: string[] = [];
@@ -68,10 +71,11 @@ export function buildCopyContext(ui: UiLanguage, project: AxeptioProject | null,
     }
     const parts: string[] = [];
     for (const [cc, subs] of byCountry) {
-      if (subs.length > 3) parts.push(`${country(cc)} (${subs.length} ${ui === 'fr' ? 'régions' : 'regions'})`);
-      else parts.push(...subs.map(place));
+      const name = inText ? t.article(country(cc)) : country(cc);
+      if (subs.length > 3) parts.push(`${name} (${subs.length} ${ui === 'fr' ? 'régions' : 'regions'})`);
+      else parts.push(...subs.map((k) => place(k, inText)));
     }
-    parts.push(...singles.map(place));
+    parts.push(...singles.map((k) => place(k, inText)));
     if (parts.length <= max) return list(parts);
     const shown = parts.slice(0, max - 1);
     const more = parts.length - shown.length;
@@ -94,12 +98,25 @@ export function buildCopyContext(ui: UiLanguage, project: AxeptioProject | null,
   } catch {
     dateFormat = null;
   }
+  const regionName = (key: string) => {
+    const [cc, sub] = key.split('-');
+    return sub ? names.region(cc, sub, ui) : undefined;
+  };
+  const regionWithCode = (key: string) => {
+    const name = regionName(key);
+    return name ? `${name} (${key})` : key;
+  };
   return {
     config,
     configs: (ids) => list(ids.map(config)),
-    places,
-    place,
+    places: (keys, max) => places(keys, max),
+    placesIn: (keys, max) => places(keys, max, true),
+    place: (key) => place(key),
+    placeIn: (key) => place(key, true),
+    regionWithCode,
+    regionName,
     country,
+    countryIn: (code) => t.article(country(code)),
     regulation,
     regulations: (values) => list(values.map(regulation)),
     language,

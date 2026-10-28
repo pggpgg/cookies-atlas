@@ -12,6 +12,10 @@ interface LegendProps {
   colors: ColorAssignment;
   isolated: string | null;
   internal: boolean;
+  /** Configs the diagnostics found can never show (whatever the map mode). */
+  deadIds: ReadonlySet<string>;
+  /** Location-based display off, shown as it is today: banners other than the default show only on request. */
+  today: boolean;
   onHover: (id: string | null) => void;
   onIsolate: (id: string | null) => void;
 }
@@ -24,7 +28,7 @@ export function coverageOf(evaluation: Evaluation, id: string) {
   return { countries: whole.size, regions: regionsOnly.length };
 }
 
-export function Legend({ project, evaluation, colors, isolated, internal, onHover, onIsolate }: LegendProps) {
+export function Legend({ project, evaluation, colors, isolated, internal, deadIds, today, onHover, onIsolate }: LegendProps) {
   const { t, c } = useI18n();
   const fallbackId = project.client?.cookiesSettings?.geolocationFallbackConfigId ?? null;
   const abIds = new Set((project.abTests ?? []).flatMap((x) => (x.variants ?? []).map((v) => v.configId)));
@@ -41,7 +45,11 @@ export function Legend({ project, evaluation, colors, isolated, internal, onHove
         {(project.cookies ?? []).map((config) => {
           const id = config.identifier;
           const coverage = coverageOf(evaluation, id);
-          const never = coverage.countries + coverage.regions === 0;
+          const offMap = coverage.countries + coverage.regions === 0;
+          // Diagnostics describe location-based display on; today a site can still pin any banner.
+          const never = !today && deadIds.has(id);
+          const hasPages = Array.isArray(config.settings?.pages) && config.settings!.pages!.length > 0;
+          const wins = offMap && today ? t.legend.notDefault(hasPages) : t.legend.wins(coverage.countries, coverage.regions);
           const countries = countriesOf(config);
           const subs = subdivisionsOf(config);
           const lang = langKey(config.language);
@@ -65,11 +73,11 @@ export function Legend({ project, evaluation, colors, isolated, internal, onHove
                 onBlur={() => onHover(null)}
                 onClick={() => onIsolate(active ? null : id)}
               >
-                <span class={`swatch${never ? ' swatch-none' : ''}`} style={never ? undefined : { background: colorOf(colors, id) }} />
+                <span class={`swatch${offMap ? ' swatch-none' : ''}`} style={offMap ? undefined : { background: colorOf(colors, id) }} />
                 <span class="legend-text">
                   <span class="legend-name">{config.name || config.title || id}</span>
                   <span class="legend-meta">{meta.join(' · ')}</span>
-                  <span class="legend-wins">{t.legend.wins(coverage.countries, coverage.regions)}</span>
+                  <span class="legend-wins">{wins}</span>
                 </span>
                 <span class="legend-badges">
                   {id === fallbackId && <span class="badge">{t.legend.fallback}</span>}

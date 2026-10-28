@@ -2,6 +2,8 @@
  * Runs the selection engine for every region and visitor language, so the map and the
  * diagnostics always agree with what the SDK does.
  */
+import { ISO_3166_1 } from './iso-3166';
+import { SECOND_LEVEL_PARENTS } from './region-parents';
 import { REGION_TABLE } from './regions';
 import { langKey, selectConfig, type ABTestHit, type Selection, type SelectionStep, type VisitorContext } from './select';
 import type { AxeptioConfig, AxeptioProject, StringOrList } from './types';
@@ -54,11 +56,28 @@ export interface EvaluateOptions {
 
 export const regionKey = (country: string, subdivision: string | null) => (subdivision ? `${country}-${subdivision}` : country);
 
+/** US territories: the SDK table lists them as US subdivisions, but CDNs report them as countries. */
+const US_TERRITORIES: ReadonlySet<string> = new Set(['AS', 'GU', 'MP', 'PR', 'UM', 'VI']);
+
+export interface ReportedAs {
+  /** Where visitors are reported instead: a country ("PR") or a first-level region ("FR-IDF"). */
+  key: string;
+  level: 'country' | 'region';
+}
+
 /**
- * The SDK table lists US territories as US subdivisions, but CDNs report visitors there with
- * the territory's own country code (PR, GU...), so "US-PR" never happens. Skip them.
+ * Region keys no visitor is ever reported in, and where those visitors are reported instead.
+ * The CDN reports US territories as countries ("PR", never "US-PR") and only reports first-level
+ * regions ("FR-IDF", never the department "FR-75"). Undefined for reachable (or unknown) keys.
  */
-export const UNREACHABLE_TABLE_SUBDIVISIONS: ReadonlySet<string> = new Set(['US-AS', 'US-GU', 'US-MP', 'US-PR', 'US-UM', 'US-VI']);
+export function reportedInstead(key: string): ReportedAs | undefined {
+  const m = /^([A-Z]{2})-([A-Z0-9]{1,3})$/.exec(key);
+  if (!m) return undefined;
+  const [, country, code] = m;
+  if (country === 'US' && US_TERRITORIES.has(code)) return { key: code, level: 'country' };
+  const parent = SECOND_LEVEL_PARENTS[country]?.[code];
+  return parent ? { key: regionKey(country, parent), level: 'region' } : undefined;
+}
 
 const asStrings = (value: StringOrList): string[] =>
   (Array.isArray(value) ? value : [value]).filter((v): v is string => typeof v === 'string').map((v) => v.trim().toUpperCase()).filter(Boolean);
@@ -80,13 +99,16 @@ export const countriesOf = (config: AxeptioConfig) => asStrings(config.country);
 export const subdivisionsOf = (config: AxeptioConfig) => asStrings(config.subdivision);
 
 /**
- * Every region worth evaluating: all countries on the map and in configs (as a whole),
- * every subdivision the SDK table or a config mentions, plus the caller's extra regions.
+ * Every place a visitor can be reported in that is worth evaluating: all countries on the map and
+ * in configs (as a whole), every subdivision the SDK table or a config mentions, plus the caller's
+ * extra regions. Codes no visitor is ever reported with ("UK", "US-PR", "FR-75") are left out, so a
+ * config only "wins" where real visitors can get it.
  */
 export function regionsToEvaluate(project: AxeptioProject, extra: RegionRequest[] = []): RegionRequest[] {
   const out = new Map<string, RegionRequest>();
   const add = (country: string, subdivision: string | null) => {
-    if (!/^[A-Z]{2}$/.test(country)) return;
+    if (!ISO_3166_1.has(country)) return;
+    if (subdivision && reportedInstead(regionKey(country, subdivision))) return;
     out.set(regionKey(country, subdivision), { country, subdivision });
   };
   for (const code of WORLD_COUNTRY_CODES) add(code, null);
@@ -102,7 +124,6 @@ export function regionsToEvaluate(project: AxeptioProject, extra: RegionRequest[
   }
   for (const sub of REGION_TABLE.subdivisions) {
     for (const code of sub.isoCodes) {
-      if (UNREACHABLE_TABLE_SUBDIVISIONS.has(code)) continue;
       const [country, region] = code.split('-');
       add(country, region);
     }
@@ -174,8 +195,9 @@ export const defaultModeOf = (project: AxeptioProject): EvaluationMode =>
   project.client?.cookiesSettings?.geolocation ? 'actual' : 'preview';
 
 /**
- * Outcome for a map feature: its own region if evaluated (e.g. "CA-QC"),
- * else its first-level parent, else the country as a whole.
+ * Outcome for a map feature. Visitors are reported in first-level regions, so a finer feature
+ * (a French department) takes its parent region's outcome, never its own; a region nothing
+ * targets takes the outcome of the country as a whole.
  */
 export function outcomeForFeature(
   evaluation: Evaluation,
@@ -183,11 +205,8 @@ export function outcomeForFeature(
   code?: string | null,
   parent?: string | null,
 ): RegionOutcome | undefined {
-  return (
-    (parent ? evaluation.regions.get(regionKey(country, parent)) : undefined) ??
-    (code ? evaluation.regions.get(regionKey(country, code)) : undefined) ??
-    evaluation.regions.get(country)
-  );
+  const reported = parent ?? code;
+  return (reported ? evaluation.regions.get(regionKey(country, reported)) : undefined) ?? evaluation.regions.get(country);
 }
 
 /** Winner for one language, or the list of distinct winners when language is "all". */

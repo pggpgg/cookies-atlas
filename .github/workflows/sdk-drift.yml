@@ -4,7 +4,8 @@ name: SDK drift check
 #  1. compare the parts Cookies Atlas mirrors (region table, regulation enum, selection code
 #     fingerprints) with sdk-snapshot/snapshot.json, and
 #  2. replay the SDK's own selection code against the engine on ~100k visitor scenarios.
-# Opens (or updates) an issue labelled sdk-drift when either one finds a difference.
+# Opens (or updates) an issue labelled sdk-drift when either one finds a difference, or when the
+# check itself can't run (sdk.js unreachable, extraction broken).
 on:
   schedule:
     - cron: '23 9 * * 1' # Mondays, 09:23 UTC
@@ -13,6 +14,7 @@ on:
 permissions:
   contents: read
   issues: write
+  actions: write # keep the schedule alive (see the last step)
 
 jobs:
   check:
@@ -41,14 +43,22 @@ jobs:
           path: drift/
           if-no-files-found: ignore
       - name: Open or update the drift issue
-        if: steps.drift.outputs.changed == 'true' || steps.live.outcome == 'failure'
+        if: always() && (steps.drift.outcome == 'failure' || steps.drift.outputs.changed == 'true' || steps.live.outcome == 'failure')
         env:
           GH_TOKEN: ${{ github.token }}
           LIVE_OUTCOME: ${{ steps.live.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          mkdir -p drift
           {
-            cat drift/report.md
-            if [ "$LIVE_OUTCOME" = "failure" ]; then
+            if [ -f drift/report.md ]; then
+              cat drift/report.md
+            else
+              echo "## Cookies Atlas SDK drift check"
+              echo
+              echo "The check failed before writing a report: see the run logs."
+            fi
+            if [ "$LIVE_OUTCOME" = "failure" ] && [ -f drift/live.txt ]; then
               echo
               echo "### Live replay: the engine and sdk.js disagree"
               echo
@@ -56,6 +66,8 @@ jobs:
               tail -n 80 drift/live.txt
               echo '```'
             fi
+            echo
+            echo "Run: $RUN_URL"
           } > drift/issue.md
           gh label create sdk-drift --color FBCA04 --description "Axeptio's SDK changed" --force
           existing=$(gh issue list --label sdk-drift --state open --json number --jq '.[0].number')
@@ -64,3 +76,11 @@ jobs:
           else
             gh issue create --title "Axeptio's SDK changed: check Cookies Atlas" --label sdk-drift --body-file drift/issue.md
           fi
+      # GitHub disables scheduled workflows after 60 days without repository activity.
+      # Re-enabling this one each week resets that clock.
+      - name: Keep the weekly schedule alive
+        if: always() && github.event_name == 'schedule'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/sdk-drift.yml/enable"

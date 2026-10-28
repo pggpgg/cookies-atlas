@@ -1,7 +1,20 @@
-import type { Finding } from '../engine/diagnostics';
+import type { Finding, UnreachableTarget } from '../engine/diagnostics';
 import type { CopyContext, FindingCopy, Messages } from './types';
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** Names that take "the" inside a sentence: the United States, the Netherlands, the Cayman Islands... */
+const TAKES_THE =
+  /^(United |Republic |Democratic |Central African |Dominican |Czech Republic|Federated |Holy See|Netherlands|Philippines|Bahamas|Gambia|Maldives|Seychelles|Comoros|Vatican)|( Islands| Isles)$/;
+
+/** Where visitors in an unreachable code are located: "Île-de-France (FR-IDF)", "the country Puerto Rico (PR)". */
+const located = (u: UnreachableTarget, c: CopyContext) =>
+  u.instead.level === 'country' ? `the country ${c.country(u.instead.key)} (${u.instead.key})` : c.regionWithCode(u.instead.key);
+const unreachableMoves = (list: UnreachableTarget[], c: CopyContext) =>
+  c.list(list.map((u) => `visitors in ${u.value} are located in ${located(u, c)}`));
+const unreachableFix = (list: UnreachableTarget[], c: CopyContext) =>
+  `Target ${c.list(list.map((u) => `${located(u, c)} instead of ${u.value}`))}.`;
 
 function finding(f: Finding, c: CopyContext): FindingCopy {
   const d = f.data as Record<string, any>;
@@ -21,7 +34,7 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
     case 'visibility-restricted':
       return {
         title: `The banner only shows in ${d.allowed.length} ${plural(d.allowed.length, 'country', 'countries')}`,
-        mechanism: `Banner visibility is on: visitors outside ${c.places(d.allowed, 8)} get no banner at all, before location-based display even runs.`,
+        mechanism: `Banner visibility is on: visitors outside ${c.placesIn(d.allowed, 8)} get no banner at all, before location-based display even runs.`,
         fix: 'Check that every country where you need consent is in the list.',
       };
     case 'fallback-invalid':
@@ -39,13 +52,16 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
     case 'dead-config': {
       const name = c.config(f.configs[0]);
       const by = c.config(d.by);
-      const home = d.home ? c.place(d.home) : '';
+      const home = d.home ? c.placeIn(d.home) : '';
       const pages = d.hasPageRules ? ' It has page rules, so it can still show on matching pages when no banner matches the visitor’s location.' : '';
       const mechanisms: Record<string, string> = {
         order: `In ${home}, it ties with ${by}, which uses the same language (${c.language(d.language)}) and comes first in your list. The SDK keeps the first one, so ${name} never wins.`,
         specificity: `In ${home}, ${by} wins at an earlier step. The SDK checks banners targeting the region first, then banners listing a single country, then banners listing several.`,
         regulation: `In ${home}, ${by} matches the visitor's regulation and ${name} doesn't, so the SDK sets ${name} aside.`,
-        untargeted: 'It lists no country or region, and never wins the regulation match or the fallback.',
+        untargeted: "It doesn't list any country or region a visitor can match, and never wins the regulation match or the fallback.",
+        unreachable: d.unreachable
+          ? `It only targets ${c.list((d.unreachable as UnreachableTarget[]).map((u) => c.regionWithCode(u.value)))}, and Axeptio locates visitors by country and first-level region only: ${unreachableMoves(d.unreachable, c)}.`
+          : '',
         unknown: 'It never wins, in any country, for any language.',
       };
       const fixes: Record<string, string> = {
@@ -53,42 +69,66 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
         specificity: `If it should win in ${home}, remove ${home} from ${by}, or target ${home} more precisely with ${name}.`,
         regulation: `If it's meant for ${home}, give it the same regulation as ${by}.`,
         untargeted: 'List the countries it is meant for, or delete it.',
+        unreachable: d.unreachable ? unreachableFix(d.unreachable, c) : '',
         unknown: 'Check its countries, region and language.',
       };
       return { title: `${name} is never shown`, mechanism: mechanisms[d.reason] + pages, fix: fixes[d.reason] };
     }
     case 'over-capture': {
+      const n = d.capturing.length;
+      const they = (one: string, many: string) => plural(n, one, many);
       const capturing = c.configs(d.capturing);
-      const country = c.country(d.country);
-      const intended = c.places(d.intended);
+      const country = c.countryIn(d.country);
+      const intended = c.placesIn(d.intended);
       const competitor = d.competitor ? c.config(d.competitor) : null;
-      const reg = c.regulation(d.regulation);
+      const regs = (d.regulations ?? []) as string[];
+      const keeps = `${intended} ${plural(d.intended.length, 'keeps its', 'keep their')} ${they('banner', 'banners')}, since region matches come first`;
+      const add =
+        regs.length > 1
+          ? `Add banners listing only ${country}, one per regulation (${c.regulations(regs)})`
+          : regs.length === 1
+            ? `Add a banner listing only ${country}, with the ${c.regulation(regs[0])} regulation`
+            : `Add a banner listing only ${country}`;
+      const created = plural(Math.max(regs.length, 1), 'the new one', 'the new ones');
+      if (d.step === 'multi-country') {
+        return {
+          title: `${capturing} also ${they('shows', 'show')} in the rest of ${country}`,
+          mechanism: `${they('It targets', 'They target')} ${intended}, but ${they('it also lists', 'they also list')} ${country} among other countries. Elsewhere in ${country}, no banner targets the visitor's region and none lists ${country} alone, so the SDK picks among banners listing it with others, and ${they('this one wins', 'these win')}.`,
+          fix: `${add}. Banners listing a single country come before banners listing several, so the rest of ${country} gets ${created}; ${keeps}.`,
+        };
+      }
       return {
-        title: `${capturing} also ${plural(d.capturing.length, 'shows', 'show')} in the rest of ${country}`,
+        title: `${capturing} also ${they('shows', 'show')} in the rest of ${country}`,
         mechanism:
-          `${plural(d.capturing.length, 'It targets', 'They target')} ${intended}, but ${plural(d.capturing.length, 'it lists', 'they list')} ${country} as ${plural(d.capturing.length, 'its', 'their')} only country. ` +
-          `Elsewhere in ${country}, no banner targets the visitor's region, so the SDK moves on to banners listing a single country, and ${plural(d.capturing.length, 'this is the only one', 'these are the only ones')}.` +
-          (competitor ? ` ${competitor} lists ${country} too, but it lists several countries, so it only comes after.` : ''),
-        fix: competitor
-          ? `Give the rest of ${country} its own banner listing only ${country}, with the ${reg} regulation (for example, split ${competitor} into one banner per country). Among single-country banners, the SDK keeps the one whose regulation matches the visitor's region, so ${intended} keeps its banner.`
-          : `Add a banner listing only ${country}, with the ${reg} regulation. Among single-country banners, the SDK keeps the one whose regulation matches the visitor's region, so ${intended} keeps its banner.`,
+          `${they('It targets', 'They target')} ${intended}, but ${they('it lists', 'they list')} ${country} as ${they('its', 'their')} only country. Elsewhere in ${country}, no banner targets the visitor's region, so the SDK moves on to banners listing only ${country}, and ${they('this one wins', 'these win')}.` +
+          (competitor ? ` ${competitor} lists ${country} too, but among other countries, so it only comes after.` : ''),
+        fix:
+          regs.length > 0
+            ? `${add}${competitor ? ` (for example, split ${competitor} into one banner per country)` : ''}. Among banners listing only ${country}, the SDK prefers the one whose regulation matches the visitor's region, so the rest of ${country} gets ${created}; ${keeps}.`
+            : `${add} for each language ${they('it uses', 'they use')}, above ${they('it', 'them')} in your list. With no regulation to prefer in ${country}, the SDK breaks the tie by visitor language, then by list order; ${keeps}.`,
       };
     }
     case 'regulation-mismatch': {
-      const places = c.places(f.regions);
+      const places = c.placesIn(f.regions);
       const configs = c.configs(f.configs);
       const theirs = d.configRegulation ? c.regulation(d.configRegulation) : 'no regulation';
+      const built = d.configRegulation ? `built for ${theirs}` : plural(f.configs.length, 'which has no regulation', 'which have no regulation');
       const one = f.regions.length === 1;
       const how = d.targeted
         ? `because ${plural(f.configs.length, 'it lists', 'they list')} ${one ? 'it' : 'them'}`
         : `because no banner targets ${one ? 'it' : 'them'}, so ${one ? 'it gets' : 'they get'} the ${c.list((d.steps as string[]).map((s) => c.step(s as any).toLowerCase()))}`;
-      const short = c.places(f.regions, 3);
+      const short = cap(c.placesIn(f.regions, 3));
+      const banner: Record<string, string> = {
+        'opt-out': 'an opt-out banner',
+        none: 'a banner with no regulation',
+        unknown: 'a banner with an unknown regulation',
+      };
       return {
         title:
           f.severity === 'error'
-            ? `${short} ${one ? 'gets' : 'get'} an opt-out banner where consent comes first`
-            : `${short} ${one ? 'gets' : 'get'} a banner built for ${theirs}`,
-        mechanism: `${places} ${one ? 'falls' : 'fall'} under ${c.regulations(d.regulations)}, but ${one ? 'gets' : 'get'} ${configs}, built for ${theirs}, ${how}.`,
+            ? `${short} ${one ? 'gets' : 'get'} ${banner[d.configKind] ?? banner['opt-out']} where consent comes first`
+            : `${short} ${one ? 'gets' : 'get'} ${d.configRegulation ? `a banner built for ${theirs}` : banner.none}`,
+        mechanism: `${cap(places)} ${one ? 'falls' : 'fall'} under ${c.regulations(d.regulations)}, but ${one ? 'gets' : 'get'} ${configs}, ${built}, ${how}.`,
         fix:
           f.severity === 'error'
             ? `Add a banner with the right regulation that lists these places. If you'd rather keep one banner for the rest of the world, make your fallback an opt-in banner.`
@@ -98,7 +138,7 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
     case 'shadowed-listing': {
       const shadowed = c.configs(d.shadowed);
       const winners = c.configs(d.winners);
-      const places = c.places(f.regions);
+      const places = c.placesIn(f.regions);
       const reasons: Record<string, string> = {
         specificity: `${winners} ${plural(d.winners.length, 'wins', 'win')} there at an earlier step: a banner listing a single country beats banners listing several.`,
         order: `${c.config(d.by)} uses the same language and comes first in your list.`,
@@ -121,7 +161,7 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
     case 'regulation-capture':
       return {
         title: `${d.count} ${plural(d.count, 'country you don’t list gets', 'countries you don’t list get')} ${c.configs(f.configs)}`,
-        mechanism: `${c.places(f.regions)} ${plural(d.count, 'falls', 'fall')} under ${c.regulation(d.regulation)} in Axeptio's table. No banner lists ${plural(d.count, 'it', 'them')}, so the SDK picks among your ${c.regulation(d.regulation)} banners, by visitor language.`,
+        mechanism: `${cap(c.placesIn(f.regions))} ${plural(d.count, 'falls', 'fall')} under ${c.regulation(d.regulation)} in Axeptio's table. No banner lists ${plural(d.count, 'it', 'them')}, so the SDK picks among your ${c.regulation(d.regulation)} banners, by visitor language.`,
         fix: 'Expected if you want one banner for the whole regulation. List these countries in a banner if they need their own.',
       };
     case 'subdivision-format': {
@@ -130,6 +170,15 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
         title: `Region code ${c.list(d.values)} isn't in the COUNTRY-REGION format`,
         mechanism: `The SDK compares regions written like CA-QC (country, dash, region). ${c.list(d.values)} never matches, so ${c.configs(f.configs)} only ${plural(f.configs.length, 'matches', 'match')} by country, which covers the whole country.`,
         fix: suggestion ? `Use ${suggestion} instead.` : 'Write the region as COUNTRY-REGION, for example CA-QC.',
+      };
+    }
+    case 'unreachable-subdivision': {
+      const list = d.unreachable as UnreachableTarget[];
+      const values = c.list(list.map((u) => u.value));
+      return {
+        title: `${values} never ${plural(list.length, 'matches', 'match')} a visitor`,
+        mechanism: `${c.configs(f.configs)} ${plural(f.configs.length, 'targets', 'target')} ${plural(list.length, 'this region', 'these regions')}, but Axeptio locates visitors by country and first-level region only: ${unreachableMoves(list, c)}. ${plural(list.length, 'This code', 'These codes')} never ${plural(list.length, 'matches', 'match')}.`,
+        fix: unreachableFix(list, c),
       };
     }
     case 'unknown-country': {
@@ -147,11 +196,17 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
         fix: d.suggestion ? `Set its regulation to ${d.suggestion}.` : 'Pick one of the regulations above.',
       };
     case 'invalid-page-rule':
-      return {
-        title: `Broken page rule ${d.url}`,
-        mechanism: `This regular expression is invalid. When the SDK falls back to page rules, it throws an error and may show no banner at all.`,
-        fix: 'Fix the pattern, or turn off the regex option for this rule.',
-      };
+      return d.problem === 'malformed'
+        ? {
+            title: `Malformed page rule in ${c.config(f.configs[0])}`,
+            mechanism: 'One of its page rules is malformed. When the SDK falls back to page rules, it throws an error and may show no banner at all.',
+            fix: 'Delete the rule or give it a URL, then publish.',
+          }
+        : {
+            title: `Broken page rule ${d.url}`,
+            mechanism: 'This regular expression is invalid. When the SDK falls back to page rules, it throws an error and may show no banner at all.',
+            fix: 'Fix the pattern, or turn off the regex option for this rule.',
+          };
     case 'ab-test':
       return {
         title: `A/B test ${d.testId} is running`,
@@ -164,6 +219,7 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
 
 export const en: Messages = {
   locale: 'en',
+  article: (name) => (TAKES_THE.test(name) ? `the ${name}` : name),
   app: {
     title: 'Cookies Atlas',
     tagline: 'See which Axeptio banner each country gets, and why.',
@@ -248,10 +304,14 @@ export const en: Messages = {
     lists: (n) => `lists ${n} ${plural(n, 'country', 'countries')}`,
     listsNothing: 'lists no country',
     regionsTargeted: (n) => `${n} ${plural(n, 'region', 'regions')}`,
-    wins: (countries, regions) =>
-      countries + regions === 0
-        ? 'shown nowhere'
-        : `shown in ${countries} ${plural(countries, 'country', 'countries')}${regions ? ` and ${regions} ${plural(regions, 'region', 'regions')}` : ''}`,
+    wins: (countries, regions) => {
+      const parts = [
+        countries ? `${countries} ${plural(countries, 'country', 'countries')}` : '',
+        regions ? `${regions} ${plural(regions, 'region', 'regions')}` : '',
+      ].filter(Boolean);
+      return parts.length ? `shown in ${parts.join(' and ')}` : 'shown nowhere';
+    },
+    notDefault: (hasPageRules) => `shown only when the site pins it with cookiesVersion${hasPageRules ? ', or on pages its rules match' : ''}`,
     neverShown: 'Never shown',
     fallback: 'Fallback',
     abTest: 'A/B test',
@@ -295,8 +355,8 @@ export const en: Messages = {
         : `Tie-breaks use the browser language: ${raw ? `“${raw}”` : 'none'}${key ? ` → ${key}` : ''}.`,
     regulation: (place, regulation, c) =>
       regulation
-        ? `${place} falls under ${c.regulation(regulation)} in Axeptio's table.`
-        : `${place} has no regulation in Axeptio's table.`,
+        ? `${cap(place)} falls under ${c.regulation(regulation)} in Axeptio's table.`
+        : `${cap(place)} has no regulation in Axeptio's table.`,
     visibility: (allowed, passed, c) =>
       passed
         ? `Banner visibility is on (${c.places(allowed, 6)}): this visitor is allowed.`

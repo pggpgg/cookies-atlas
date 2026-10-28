@@ -3,11 +3,20 @@
  * Evaluation (the same one the map paints), so findings always agree with the map.
  * Wording lives in src/i18n: a finding only carries its kind, severity and data.
  */
-import { countriesOf, OTHER_LANGUAGE, regionKey, subdivisionsOf, type Evaluation, type RegionOutcome } from './evaluate';
+import {
+  countriesOf,
+  OTHER_LANGUAGE,
+  regionKey,
+  reportedInstead,
+  subdivisionsOf,
+  type Evaluation,
+  type RegionOutcome,
+  type ReportedAs,
+} from './evaluate';
 import { COUNTRY_CODE_FIXES, ISO_3166_1 } from './iso-3166';
 import { OPT_IN_REGULATIONS, OPT_OUT_REGULATIONS, REGULATIONS } from './regions';
 import { langKey, pageMatches, sameRegulation, selectConfig, type Selection, type TraceEntry } from './select';
-import type { AxeptioConfig, AxeptioProject } from './types';
+import type { AxeptioConfig, AxeptioProject, PageRule } from './types';
 
 export type Severity = 'error' | 'warning' | 'info';
 
@@ -24,13 +33,23 @@ export type FindingKind =
   | 'order-tie'
   | 'regulation-capture'
   | 'subdivision-format'
+  | 'unreachable-subdivision'
   | 'unknown-country'
   | 'unknown-regulation'
   | 'invalid-page-rule'
   | 'ab-test';
 
 /** Why a config loses where it should win. */
-export type LossReason = 'order' | 'specificity' | 'regulation' | 'untargeted' | 'unknown';
+export type LossReason = 'order' | 'specificity' | 'regulation' | 'untargeted' | 'unreachable' | 'unknown';
+
+/** A region code a config targets that no visitor is ever reported in. */
+export interface UnreachableTarget {
+  value: string;
+  instead: ReportedAs;
+}
+
+/** How a banner's regulation relates to consent: opt-in laws, opt-out laws, none set, or a value the SDK doesn't know. */
+export type RegulationKind = 'opt-in' | 'opt-out' | 'none' | 'unknown';
 
 export interface Finding {
   id: string;
@@ -58,7 +77,25 @@ export function intentOf(config: AxeptioConfig): { subdivisions: string[]; count
   return { subdivisions, countries };
 }
 
-const hasPageRules = (config: AxeptioConfig) => Array.isArray(config.settings?.pages) && config.settings!.pages!.length > 0;
+/** A config's page rules, read like the SDK does: only a list counts. */
+const pageRulesOf = (config: AxeptioConfig): PageRule[] => (Array.isArray(config.settings?.pages) ? config.settings!.pages! : []);
+const hasPageRules = (config: AxeptioConfig) => pageRulesOf(config).length > 0;
+
+export function regulationKind(value: unknown): RegulationKind {
+  if (typeof value !== 'string' || !value) return 'none';
+  const v = value.toLowerCase();
+  return OPT_IN_REGULATIONS.has(v) ? 'opt-in' : OPT_OUT_REGULATIONS.has(v) ? 'opt-out' : 'unknown';
+}
+
+/** Region codes a config targets that the CDN never reports (well-formed ones; malformed ones get their own finding). */
+export function unreachableTargetsOf(config: AxeptioConfig): UnreachableTarget[] {
+  return subdivisionsOf(config)
+    .filter(isWellFormedSubdivision)
+    .flatMap((value) => {
+      const instead = reportedInstead(value);
+      return instead ? [{ value, instead }] : [];
+    });
+}
 
 /** The candidate step that picked the winner in a selection, if any. */
 function decidingEntry(selection: Selection): Extract<TraceEntry, { kind: 'candidates' }> | undefined {
@@ -142,13 +179,19 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
   }
 
   // --- Configuration fields ----------------------------------------------------------------
+  const unreachableByConfig = new Map<string, UnreachableTarget[]>();
   for (const config of configs) {
     const subs = subdivisionsOf(config);
     const malformed = subs.filter((s) => !isWellFormedSubdivision(s));
     if (malformed.length > 0) {
       const countries = countriesOf(config);
       const single = new Set(countries).size === 1 ? countries[0] : undefined;
-      const suggestions = malformed.map((v) => (single && /^[A-Z0-9]{1,3}$/.test(v) ? `${single}-${v}` : null));
+      const suggestions = malformed.map((v) => {
+        if (!single || !ISO_3166_1.has(single) || !/^[A-Z0-9]{1,3}$/.test(v)) return null;
+        // Suggest the code visitors are reported with: "75" on a French banner means Île-de-France.
+        const instead = reportedInstead(`${single}-${v}`);
+        return instead ? (instead.level === 'region' ? instead.key : null) : `${single}-${v}`;
+      });
       // Configs with the same mistake share one finding.
       const id = `subdivision-format:${malformed.join(',')}:${suggestions.join(',')}`;
       const existing = findings.find((f) => f.id === id);
@@ -187,24 +230,25 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
       });
     }
 
-    for (const rule of config.settings?.pages ?? []) {
-      if (pageMatches(rule, '/') === null) {
-        findings.push({
-          id: `invalid-page-rule:${config.identifier}:${rule.url}`,
-          kind: 'invalid-page-rule',
-          severity: 'warning',
-          configs: [config.identifier],
-          regions: [],
-          data: { url: rule.url ?? '' },
-        });
-      }
+    const unreachable = unreachableTargetsOf(config);
+    if (unreachable.length > 0) unreachableByConfig.set(config.identifier, unreachable);
+
+    for (const rule of pageRulesOf(config)) {
+      if (pageMatches(rule, '/') !== null) continue;
+      const isObject = Boolean(rule) && typeof rule === 'object';
+      const url = isObject && rule.url != null ? String(rule.url) : '';
+      // An object with the regex option is a broken pattern; anything else is a malformed rule.
+      const problem = isObject && rule.regex ? 'regex' : 'malformed';
+      const id = `invalid-page-rule:${config.identifier}:${problem}:${url}`;
+      if (findings.some((f) => f.id === id)) continue;
+      findings.push({ id, kind: 'invalid-page-rule', severity: 'warning', configs: [config.identifier], regions: [], data: { url, problem } });
     }
   }
 
   // --- Engine-backed findings ----------------------------------------------------------------
 
-  // Over-capture: region-targeted configs that also win elsewhere in their country through a
-  // country match. Grouped by country, since configs for the same region share the cause.
+  // Over-capture: region-targeted configs that also win elsewhere in their region's country,
+  // through the country match. Grouped by country, since configs for the same region share the cause.
   const overCaptured = new Set<string>(); // "configId|regionKey"
   const explainedShadow = new Set<string>(); // "configId|regionKey" losses an over-capture finding explains
   interface CaptureGroup {
@@ -214,6 +258,8 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
     intended: Set<string>;
     step: string;
     regulation: string | undefined;
+    /** Regulations of every captured place (US states differ from the rest of the US). */
+    regulations: Set<string>;
   }
   const captureGroups = new Map<string, CaptureGroup>();
   for (const config of configs) {
@@ -223,28 +269,41 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
       if (intent.subdivisions.includes(key)) continue;
       const outcome = evaluation.regions.get(key)!;
       if (outcome.step !== 'single-country' && outcome.step !== 'multi-country') continue;
+      // Only countries the config targets a region of: winning in another listed country is intended.
+      const intendedHere = intent.subdivisions.filter((sub) => sub.startsWith(outcome.country + '-'));
+      if (intendedHere.length === 0) continue;
       const group: CaptureGroup = captureGroups.get(outcome.country) ?? {
         country: outcome.country,
         capturing: [],
         regions: new Set(),
         intended: new Set(),
         step: outcome.step,
-        regulation: undefined,
+        regulation: outcome.regulation,
+        regulations: new Set(),
       };
       if (!group.capturing.includes(config.identifier)) group.capturing.push(config.identifier);
       group.regions.add(key);
-      for (const sub of intent.subdivisions) if (sub.startsWith(outcome.country + '-')) group.intended.add(sub);
-      // The rest of the country decides the regulation shown in the explanation.
-      if (outcome.subdivision === null || group.regulation === undefined) group.regulation = outcome.regulation;
+      if (outcome.regulation) group.regulations.add(outcome.regulation);
+      for (const sub of intendedHere) group.intended.add(sub);
+      // The rest of the country decides the step and regulation shown in the explanation.
+      if (outcome.subdivision === null) {
+        group.step = outcome.step;
+        group.regulation = outcome.regulation;
+      }
       captureGroups.set(outcome.country, group);
       overCaptured.add(`${config.identifier}|${key}`);
     }
   }
   for (const group of captureGroups.values()) {
-    // A config listing the country with the region's regulation, losing because the capturing ones are checked first.
-    const competitor = configs.find(
-      (c) => !group.capturing.includes(c.identifier) && countriesOf(c).includes(group.country) && sameRegulation(c.regulation, group.regulation),
-    );
+    // At the single-country step, a config listing the country among others, with the regulation
+    // of the rest of the country, loses only because the capturing ones are checked first.
+    const competitor =
+      group.step === 'single-country'
+        ? configs.find(
+            (c) =>
+              !group.capturing.includes(c.identifier) && countriesOf(c).includes(group.country) && sameRegulation(c.regulation, group.regulation),
+          )
+        : undefined;
     if (competitor) for (const key of group.regions) explainedShadow.add(`${competitor.identifier}|${key}`);
     findings.push({
       id: `over-capture:${group.country}`,
@@ -257,9 +316,10 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
         intended: [...group.intended].sort(),
         step: group.step,
         regulation: group.regulation ?? null,
+        // The rest of the country's regulation first.
+        regulations: [...group.regulations].sort((a, b) => (a === group.regulation ? -1 : b === group.regulation ? 1 : a.localeCompare(b))),
         capturing: group.capturing,
         competitor: competitor?.identifier ?? null,
-        competitorSingle: competitor ? new Set(countriesOf(competitor)).size === 1 : false,
       },
     });
   }
@@ -270,25 +330,42 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
   const shadowedIn = new Map<string, Set<string>>();
   const shadowGroups = new Map<string, Finding>();
 
+  const mergedUnreachable = new Set<string>(); // configs whose dead-config finding explains their unreachable regions
   for (const config of configs) {
     const wins = evaluation.wins.get(config.identifier) ?? new Set();
     const intent = intentOf(config);
-    const homes = [...intent.subdivisions, ...intent.countries.filter((c) => ISO_3166_1.has(c))];
+    // Where the config is meant to win: its regions, and the countries it lists for themselves
+    // (a country listed next to one of its regions only accompanies that region).
+    const regionCountries = new Set(intent.subdivisions.map((s) => s.slice(0, 2)));
+    const homes = [...intent.subdivisions, ...intent.countries.filter((c) => ISO_3166_1.has(c) && !regionCountries.has(c))];
     const language = languageOf(config, evaluation);
 
     if (wins.size === 0) {
       if (config.partOfABTest || abVariants.has(config.identifier)) continue;
       dead.add(config.identifier);
-      const home = homes.find((h) => evaluation.regions.has(h));
+      // Prefer a place it targets; else a country it lists next to a region it targets.
+      const home =
+        homes.find((h) => evaluation.regions.has(h)) ?? intent.countries.find((c) => regionCountries.has(c) && evaluation.regions.has(c));
       const outcome = home ? evaluation.regions.get(home) : undefined;
-      const why = outcome ? lossReason(selectionAt(outcome, language), config.identifier, configs) : { reason: 'untargeted' as LossReason };
+      const unreachable = unreachableByConfig.get(config.identifier) ?? [];
+      const why: { reason: LossReason; by?: string } = outcome
+        ? lossReason(selectionAt(outcome, language), config.identifier, configs)
+        : { reason: unreachable.length > 0 ? 'unreachable' : 'untargeted' };
+      if (why.reason === 'unreachable') mergedUnreachable.add(config.identifier);
       findings.push({
         id: `dead-config:${config.identifier}`,
         kind: 'dead-config',
         severity: hasPageRules(config) ? 'info' : 'warning',
         configs: why.by ? [config.identifier, why.by] : [config.identifier],
-        regions: home ? [home] : [],
-        data: { reason: why.reason, by: why.by ?? null, home: home ?? null, language, hasPageRules: hasPageRules(config) },
+        regions: home ? [home] : why.reason === 'unreachable' ? unreachable.map((u) => u.instead.key) : [],
+        data: {
+          reason: why.reason,
+          by: why.by ?? null,
+          home: home ?? null,
+          language,
+          hasPageRules: hasPageRules(config),
+          ...(why.reason === 'unreachable' ? { unreachable } : {}),
+        },
       });
       continue;
     }
@@ -322,6 +399,26 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
   }
   findings.push(...shadowGroups.values());
 
+  // Region codes no visitor is ever reported in (unless a dead-config finding already explains them).
+  // Configs with the same codes share one finding.
+  const unreachableGroups = new Map<string, Finding>();
+  for (const [configId, unreachable] of unreachableByConfig) {
+    if (mergedUnreachable.has(configId)) continue;
+    const id = `unreachable-subdivision:${unreachable.map((u) => u.value).join(',')}`;
+    const existing = unreachableGroups.get(id);
+    if (existing) existing.configs.push(configId);
+    else
+      unreachableGroups.set(id, {
+        id,
+        kind: 'unreachable-subdivision',
+        severity: 'warning',
+        configs: [configId],
+        regions: [...new Set(unreachable.map((u) => u.instead.key))],
+        data: { unreachable },
+      });
+  }
+  findings.push(...unreachableGroups.values());
+
   // Regulation mismatch: regions with their own law served a banner built for another regulation.
   // Grouped by severity, the banner's regulation and whether a config targeted the region at all.
   const UNMATCHED_STEPS = new Set(['fallback', 'default', 'page', 'cookiesVersion', 'none']);
@@ -335,9 +432,10 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
       const winner = byId.get(winnerId);
       if (!winner || sameRegulation(winner.regulation, R)) continue;
       if (overCaptured.has(`${winnerId}|${outcome.key}`)) continue;
-      const theirs = typeof winner.regulation === 'string' ? winner.regulation.toLowerCase() : null;
-      const severity: Severity =
-        OPT_IN_REGULATIONS.has(R) && (!theirs || OPT_OUT_REGULATIONS.has(theirs) || !KNOWN_REGULATIONS.has(theirs)) ? 'error' : 'info';
+      const theirs = typeof winner.regulation === 'string' && winner.regulation ? winner.regulation.toLowerCase() : null;
+      const configKind = regulationKind(theirs);
+      // Consent-first places served a banner that isn't an opt-in one: opt-out, or no (known) regulation.
+      const severity: Severity = OPT_IN_REGULATIONS.has(R) && configKind !== 'opt-in' ? 'error' : 'info';
       const targeted = !UNMATCHED_STEPS.has(outcome.step);
       const id = `regulation-mismatch:${severity}:${theirs ?? 'none'}:${targeted ? 'targeted' : 'untargeted'}`;
       const finding: Finding = mismatches.get(id) ?? {
@@ -346,7 +444,7 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
         severity,
         configs: [],
         regions: [],
-        data: { regulations: [] as string[], configRegulation: theirs, targeted, languages: [] as string[], steps: [] as string[] },
+        data: { regulations: [] as string[], configRegulation: theirs, configKind, targeted, languages: [] as string[], steps: [] as string[] },
       };
       if (!finding.configs.includes(winnerId)) finding.configs.push(winnerId);
       if (!finding.regions.includes(outcome.key)) finding.regions.push(outcome.key);

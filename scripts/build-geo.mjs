@@ -42,6 +42,8 @@ const COUNTRY_NAME_OVERRIDES = {
 };
 /** Codes we don't draw. */
 const SKIP_CODES = new Set(['AQ']);
+/** Natural Earth placeholder codes that no CDN reports, merged into the country a visitor there gets. */
+const PLACEHOLDER_CODES = { XD: 'SY' }; // UNDOF zone, Golan Heights
 
 /** First-level regions for countries where Natural Earth subdivisions are finer than ISO 3166-2 level 1. */
 const PARENT_BY_FIELD = {
@@ -51,9 +53,19 @@ const PARENT_BY_FIELD = {
 /**
  * Countries whose Natural Earth `region_cod` is the ISO 3166-2 first-level code of a finer subdivision
  * (French departments → regions, Spanish provinces → autonomous communities, Italian provinces → regions...).
- * Other countries' region_cod values are not ISO codes (economic regions, islands), so they are ignored.
+ * Other countries' region_cod values are not ISO codes (economic regions, islands, or groupings ISO
+ * doesn't use, like Maldives provinces or Botswana's cities filed under districts), so they are ignored.
  */
-const REGION_COD_PARENTS = new Set(['FR', 'ES', 'IT', 'PH', 'LK', 'GN', 'GW', 'MV', 'BW', 'CV', 'KN']);
+const REGION_COD_PARENTS = new Set(['FR', 'ES', 'IT', 'PH', 'LK', 'GN', 'GW', 'CV', 'KN']);
+/** Natural Earth ISO 3166-2 codes that are wrong, keyed by "CC:English name". */
+const CODE_OVERRIDES = { 'MV:Malé': 'MLE' };
+/** First-level regions that Natural Earth's region_cod files under another one. */
+const FIRST_LEVEL_EXCEPTIONS = new Set(['ES-ML', 'GW-BS']);
+/**
+ * Single-province Spanish communities whose region_cod is the province code: ISO 3166-2:ES gives
+ * the community its own code (Navarra is the community NC and the province NA).
+ */
+const PARENT_OVERRIDES = { 'ES-NA': 'NC', 'ES-MU': 'MC', 'ES-PM': 'IB', 'ES-LO': 'RI' };
 /** Natural Earth names that would confuse readers. */
 const NAME_OVERRIDES = {
   'US-DC': ['District of Columbia', 'District de Columbia'],
@@ -61,6 +73,7 @@ const NAME_OVERRIDES = {
 const PARENT_NAMES = {
   GB: { ENG: ['England', 'Angleterre'], SCT: ['Scotland', 'Écosse'], WLS: ['Wales', 'Pays de Galles'], NIR: ['Northern Ireland', 'Irlande du Nord'] },
   BE: { VLG: ['Flanders', 'Flandre'], WAL: ['Wallonia', 'Wallonie'], BRU: ['Brussels', 'Bruxelles'] },
+  ES: { NC: ['Navarre', 'Navarre'], MC: ['Murcia', 'Murcie'], IB: ['Balearic Islands', 'Îles Baléares'], RI: ['La Rioja', 'La Rioja'] },
 };
 
 async function ensure(file) {
@@ -99,6 +112,7 @@ async function buildCountries() {
   for (const f of units.features) {
     const p = f.properties;
     let code = /^[A-Z]{2}$/.test(p.ISO_A2_EH) ? p.ISO_A2_EH : UNIT_OVERRIDES[p.NAME_EN] || UNIT_OVERRIDES[p.NAME] || UNIT_OVERRIDES[p.ADMIN];
+    code = PLACEHOLDER_CODES[code] ?? code;
     if (!code || SKIP_CODES.has(code)) continue;
     // Map units split some countries (GB nations, Belgian regions), so prefer the country's own name.
     const name = COUNTRY_NAME_OVERRIDES[code] ?? names[code] ?? { en: p.NAME_EN || p.NAME, fr: p.NAME_FR || p.NAME_EN || p.NAME };
@@ -136,7 +150,7 @@ async function buildAdmin1() {
     if (cc === 'FR' && /^Overseas/.test(p.type_en || '')) continue;
     const iso = clean(p.iso_3166_2) || '';
     const own = iso.match(/^([A-Z]{2})-([A-Z0-9]{1,3})$/);
-    const code = own && own[1] === cc ? own[2] : null;
+    const code = CODE_OVERRIDES[`${cc}:${p.name_en || p.name}`] ?? (own && own[1] === cc ? own[2] : null);
 
     let parent = PARENT_BY_FIELD[cc]?.(p) ?? null;
     if (!parent && REGION_COD_PARENTS.has(cc)) {
@@ -144,9 +158,9 @@ async function buildAdmin1() {
       const m = rc.match(/^([A-Z]{2})[-.]([A-Z0-9]{1,3})$/);
       if (m && m[1] === cc) parent = m[2];
     }
-    // Natural Earth files Melilla under Ceuta; both are first-level autonomous cities.
-    if (cc === 'ES' && code === 'ML') parent = 'ML';
-    if (parent === code) parent = null;
+    // Natural Earth files Melilla under Ceuta and Bissau under a "B" region; both are first-level.
+    parent = PARENT_OVERRIDES[`${cc}-${code}`] ?? parent;
+    if (parent === code || FIRST_LEVEL_EXCEPTIONS.has(`${cc}-${code}`)) parent = null;
 
     const override = NAME_OVERRIDES[iso];
     const name = override ? { en: override[0], fr: override[1] } : { en: p.name_en || p.name, fr: p.name_fr || p.name_en || p.name };
@@ -205,6 +219,29 @@ async function buildAdmin1() {
   }
   fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify(index));
   console.log(`admin1/: ${Object.keys(index).length} countries, ${(total / 1024 / 1024).toFixed(1)} MB total`);
+
+  // The engine needs to know which region codes the CDN never reports (a French department,
+  // a UK county), and the first-level region it reports instead, without loading the map.
+  const lines = [];
+  for (const [cc, features] of [...byCountry.entries()].sort()) {
+    if (features.length < 2) continue;
+    const parents = Object.fromEntries(
+      features
+        .filter((f) => f.properties.code && f.properties.parent)
+        .map((f) => [f.properties.code, f.properties.parent])
+        .sort(([a], [b]) => a.localeCompare(b)),
+    );
+    if (Object.keys(parents).length > 0) lines.push(`  ${cc}: ${JSON.stringify(parents)},`);
+  }
+  fs.writeFileSync(
+    'src/engine/region-parents.ts',
+    '// Generated by scripts/build-geo.mjs: region codes finer than the first-level regions the CDN\n' +
+      '// reports, mapped to the first-level region a visitor there is reported in\n' +
+      '// (French departments → regions, UK counties → nations, Italian provinces → regions...).\n' +
+      'export const SECOND_LEVEL_PARENTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {\n' +
+      lines.join('\n') +
+      '\n};\n',
+  );
   for (const cc of ['CA', 'US']) console.log(`  ${cc}.json: ${(fs.statSync(path.join(dir, `${cc}.json`)).size / 1024).toFixed(0)} KB`);
 }
 

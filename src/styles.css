@@ -1003,6 +1003,14 @@ fieldset.segmented {
   fill-opacity: 0.85;
 }
 
+/* A split country's own shape sits under its subdivisions: paint it like the sea, so translucent
+   (indirect) subdivisions look the same as whole countries. */
+.region.underlay,
+.region.underlay:hover {
+  fill: var(--ocean);
+  fill-opacity: 1;
+}
+
 .selection {
   pointer-events: none;
 }

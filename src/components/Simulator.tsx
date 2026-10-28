@@ -73,7 +73,9 @@ export function Simulator({ project, mode, colors, countries, state, internal, o
   const languageOptions = [...new Set([...configLanguages, ...COMMON_LANGUAGES])];
   const placeLabel = country ? (country === 'UNKNOWN' ? t.simulator.unknownCountry : c.place(state.region!)) : '';
 
-  const lines = selection ? traceLines(selection.trace, placeLabel) : [];
+  // The trace names the place inside sentences ("The United States falls under CCPA").
+  const placeInText = country && country !== 'UNKNOWN' ? c.placeIn(state.region!) : placeLabel;
+  const lines = selection ? traceLines(selection.trace, placeInText) : [];
 
   function traceLines(trace: TraceEntry[], place: string): Array<{ text: string; decisive: boolean }> {
     return trace.map((entry) => {

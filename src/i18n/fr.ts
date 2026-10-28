@@ -1,7 +1,23 @@
-import type { Finding } from '../engine/diagnostics';
+import type { Finding, UnreachableTarget } from '../engine/diagnostics';
 import type { CopyContext, FindingCopy, Messages } from './types';
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+
+// Le texte évite les articles devant les noms de pays (« la France », « les États-Unis ») : ils
+// apparaissent entre parenthèses, après un deux-points, ou derrière « ce pays » / « cet endroit ».
+
+/** Où sont localisés les visiteurs d’un code inatteignable : « la région Île-de-France (FR-IDF) », « le pays Porto Rico (PR) ». */
+const located = (u: UnreachableTarget, c: CopyContext) =>
+  u.instead.level === 'country' ? `le pays ${c.country(u.instead.key)} (${u.instead.key})` : `la région ${c.regionWithCode(u.instead.key)}`;
+const unreachableMoves = (list: UnreachableTarget[], c: CopyContext) =>
+  c.list(list.map((u) => `les visiteurs de ${u.value} sont localisés dans ${located(u, c)}`));
+/** Un code de région suivi de son nom, sans article : « FR-75 (Paris) ». */
+const zone = (key: string, c: CopyContext) => {
+  const name = c.regionName(key);
+  return name ? `${key} (${name})` : key;
+};
+const unreachableFix = (list: UnreachableTarget[], c: CopyContext) =>
+  `Ciblez ${c.list(list.map((u) => `${located(u, c)} au lieu de ${u.value}`))}.`;
 
 function finding(f: Finding, c: CopyContext): FindingCopy {
   const d = f.data as Record<string, any>;
@@ -21,7 +37,7 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
     case 'visibility-restricted':
       return {
         title: `Le bandeau s’affiche seulement dans ${d.allowed.length} ${plural(d.allowed.length, 'pays', 'pays')}`,
-        mechanism: `La visibilité du bandeau est activée : hors de ${c.places(d.allowed, 8)}, les visiteurs n’ont aucun bandeau, avant même le location-based display.`,
+        mechanism: `La visibilité du bandeau est activée : hors des pays permis (${c.places(d.allowed, 8)}), les visiteurs n’ont aucun bandeau, avant même le location-based display.`,
         fix: 'Vérifiez que chaque pays où vous devez obtenir le consentement est dans la liste.',
       };
     case 'fallback-invalid':
@@ -45,34 +61,54 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
         order: `Là où il est listé (${home}), il est à égalité avec ${by}, qui a la même langue (${c.language(d.language)}) et vient avant dans votre liste. Le SDK garde le premier, donc ${name} ne gagne jamais.`,
         specificity: `Là où il est listé (${home}), ${by} gagne à une étape antérieure. Le SDK regarde d’abord les bandeaux qui ciblent la région, puis ceux qui listent un seul pays, puis ceux qui en listent plusieurs.`,
         regulation: `Là où il est listé (${home}), ${by} correspond à la réglementation du visiteur et pas ${name} : le SDK écarte ${name}.`,
-        untargeted: 'Il ne liste aucun pays ni aucune région, et ne gagne jamais le match par réglementation ni le fallback.',
+        untargeted: 'Il ne liste aucun pays ni aucune région qui puisse matcher un visiteur, et ne gagne jamais le match par réglementation ni le fallback.',
+        unreachable: d.unreachable
+          ? `Il cible seulement ${c.list((d.unreachable as UnreachableTarget[]).map((u) => zone(u.value, c)))}, et Axeptio localise les visiteurs seulement par pays et par région de premier niveau : ${unreachableMoves(d.unreachable, c)}.`
+          : '',
         unknown: 'Il ne gagne nulle part, dans aucune langue.',
       };
       const fixes: Record<string, string> = {
         order: `Supprimez-le si c’est un reste, ou changez sa langue ou ses pays pour qu’il ne chevauche plus ${by}.`,
-        specificity: `S’il doit gagner à cet endroit (${home}), retirez ${home} de ${by}, ou ciblez cet endroit plus précisément avec ${name}.`,
+        specificity: `S’il doit gagner à cet endroit (${home}), retirez cet endroit de ${by}, ou ciblez-le plus précisément avec ${name}.`,
         regulation: `Si ce bandeau vise cet endroit (${home}), donnez-lui la même réglementation que ${by}.`,
         untargeted: 'Listez les pays visés, ou supprimez-le.',
+        unreachable: d.unreachable ? unreachableFix(d.unreachable, c) : '',
         unknown: 'Vérifiez ses pays, sa région et sa langue.',
       };
       return { title: `${name} ne s’affiche jamais`, mechanism: mechanisms[d.reason] + pages, fix: fixes[d.reason] };
     }
     case 'over-capture': {
+      const many = d.capturing.length > 1;
       const capturing = c.configs(d.capturing);
       const country = c.country(d.country);
-      const intended = c.places(d.intended);
+      const intended = `${d.intended.length > 1 ? 'les régions' : 'la région'} ${c.places(d.intended)}`;
       const competitor = d.competitor ? c.config(d.competitor) : null;
-      const reg = c.regulation(d.regulation);
-      const many = d.capturing.length > 1;
+      const regs = (d.regulations ?? []) as string[];
+      const keeps = `${intended} ${d.intended.length > 1 ? 'gardent leurs' : many ? 'garde ses' : 'garde son'} ${many ? 'bandeaux' : 'bandeau'}, puisque le match par région passe en premier`;
+      const add =
+        regs.length > 1
+          ? `Ajoutez des bandeaux qui listent seulement ce pays (${country}), un par réglementation (${c.regulations(regs)})`
+          : regs.length === 1
+            ? `Ajoutez un bandeau qui liste seulement ce pays (${country}), avec la réglementation ${c.regulation(regs[0])}`
+            : `Ajoutez un bandeau qui liste seulement ce pays (${country})`;
+      const created = regs.length > 1 ? 'les nouveaux bandeaux' : 'le nouveau bandeau';
+      const title = `${capturing} ${many ? 's’affichent' : 's’affiche'} aussi dans le reste du pays (${country})`;
+      if (d.step === 'multi-country') {
+        return {
+          title,
+          mechanism: `${many ? 'Ils ciblent' : 'Il cible'} ${intended}, mais ${many ? 'listent' : 'liste'} aussi ce pays parmi d’autres. Ailleurs au pays, aucun bandeau ne cible la région du visiteur et aucun ne liste ce pays seul : le SDK choisit donc parmi les bandeaux qui le listent avec d’autres pays, et ${many ? 'ce sont eux qui gagnent' : 'c’est lui qui gagne'}.`,
+          fix: `${add}. Les bandeaux à pays unique passent avant ceux qui listent plusieurs pays : le reste du pays reçoit ${created}, et ${keeps}.`,
+        };
+      }
       return {
-        title: `${capturing} ${many ? 's’affichent' : 's’affiche'} aussi dans le reste du pays (${country})`,
+        title,
         mechanism:
-          `${many ? 'Ils ciblent' : 'Il cible'} ${intended}, mais ${many ? 'listent' : 'liste'} ${country} comme seul pays. ` +
-          `Ailleurs au pays, aucun bandeau ne cible la région du visiteur : le SDK passe donc aux bandeaux qui listent un seul pays, et ${many ? 'ce sont les seuls' : 'c’est le seul'}.` +
-          (competitor ? ` ${competitor} liste aussi ${country}, mais avec d’autres pays : il passe seulement après.` : ''),
-        fix: competitor
-          ? `Donnez au reste du pays son propre bandeau qui liste seulement ${country}, avec la réglementation ${reg} (par exemple, séparez ${competitor} en un bandeau par pays). Entre bandeaux à pays unique, le SDK garde celui dont la réglementation correspond à la région du visiteur : ${intended} garde son bandeau.`
-          : `Ajoutez un bandeau qui liste seulement ${country}, avec la réglementation ${reg}. Entre bandeaux à pays unique, le SDK garde celui dont la réglementation correspond à la région du visiteur : ${intended} garde son bandeau.`,
+          `${many ? 'Ils ciblent' : 'Il cible'} ${intended}, mais ne ${many ? 'listent' : 'liste'} que ce pays. Ailleurs au pays, aucun bandeau ne cible la région du visiteur : le SDK passe donc aux bandeaux qui listent seulement ce pays, et ${many ? 'ce sont eux qui gagnent' : 'c’est lui qui gagne'}.` +
+          (competitor ? ` ${competitor} liste aussi ce pays, mais avec d’autres : il passe seulement après.` : ''),
+        fix:
+          regs.length > 0
+            ? `${add}${competitor ? ` (par exemple, séparez ${competitor} en un bandeau par pays)` : ''}. Entre bandeaux qui listent seulement ce pays, le SDK préfère celui dont la réglementation correspond à la région du visiteur : le reste du pays reçoit ${created}, et ${keeps}.`
+            : `${add} pour chaque langue ${many ? 'qu’ils utilisent' : 'qu’il utilise'}, au-dessus ${many ? 'd’eux' : 'de lui'} dans votre liste. Sans réglementation à préférer dans ce pays, le SDK départage selon la langue du visiteur, puis selon l’ordre de la liste, et ${keeps}.`,
       };
     }
     case 'regulation-mismatch': {
@@ -84,12 +120,24 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
         ? `parce que ${f.configs.length > 1 ? 'ces bandeaux listent' : 'ce bandeau liste'} ${one ? 'cet endroit' : 'ces endroits'}`
         : `parce qu’aucun bandeau ne cible ${one ? 'cet endroit' : 'ces endroits'} : ${one ? 'il reçoit' : 'ils reçoivent'} le ${c.list((d.steps as string[]).map((s) => c.step(s as any).toLowerCase()))}`;
       const short = c.places(f.regions, 3);
+      const banner: Record<string, string> = {
+        'opt-out': 'un bandeau opt-out',
+        none: 'un bandeau sans réglementation',
+        unknown: 'un bandeau à la réglementation inconnue',
+      };
+      const manyConfigs = f.configs.length > 1;
+      const built = d.configRegulation
+        ? `${manyConfigs ? 'prévus' : 'prévu'} pour la réglementation ${theirs}`
+        : `qui ${manyConfigs ? 'n’ont' : 'n’a'} aucune réglementation`;
+      const law = `${(d.regulations as string[]).length > 1 ? 'des réglementations' : 'de la réglementation'} ${c.regulations(d.regulations)}`;
+      // The title already names the places when they all fit in it.
+      const lead = places === short ? (one ? 'Cet endroit relève' : 'Ces endroits relèvent') : `${places} : ${one ? 'cet endroit relève' : 'ces endroits relèvent'}`;
       return {
         title:
           f.severity === 'error'
-            ? `${short} : un bandeau opt-out là où le consentement passe d’abord`
-            : `${short} : un bandeau prévu pour ${theirs}`,
-        mechanism: `${places} ${one ? 'relève' : 'relèvent'} de la réglementation ${c.regulations(d.regulations)}, mais ${one ? 'reçoit' : 'reçoivent'} ${configs}, prévu pour ${theirs}, ${how}.`,
+            ? `${short} : ${banner[d.configKind] ?? banner['opt-out']} là où le consentement passe d’abord`
+            : `${short} : ${d.configRegulation ? `un bandeau prévu pour la réglementation ${theirs}` : banner.none}`,
+        mechanism: `${lead} ${law}, mais ${one ? 'reçoit' : 'reçoivent'} ${configs}, ${built}, ${how}.`,
         fix:
           f.severity === 'error'
             ? 'Ajoutez un bandeau avec la bonne réglementation qui liste ces endroits. Si vous préférez garder un seul bandeau pour le reste du monde, faites de votre fallback un bandeau opt-in.'
@@ -108,10 +156,11 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
         untargeted: `${winners} ${d.winners.length > 1 ? 'gagnent' : 'gagne'} à cet endroit.`,
         unknown: `${winners} ${d.winners.length > 1 ? 'gagnent' : 'gagne'} à cet endroit.`,
       };
+      const oneWinner = d.winners.length === 1;
       return {
-        title: `${shadowed} ${many ? 'listent' : 'liste'} ${places} sans jamais s’y afficher`,
+        title: `${places} : ${shadowed} ${many ? 'y sont listés' : 'y est listé'} sans jamais s’y afficher`,
         mechanism: reasons[d.reason] ?? reasons.unknown,
-        fix: `Retirez ${places} de ${shadowed} pour garder la config lisible, ou modifiez ${winners} s’il ne doit pas gagner là.`,
+        fix: `Retirez ${f.regions.length > 1 ? 'ces endroits' : 'cet endroit'} de ${shadowed} pour garder la config lisible, ou modifiez ${winners} ${oneWinner ? 's’il ne doit' : 's’ils ne doivent'} pas gagner là.`,
       };
     }
     case 'order-tie':
@@ -123,7 +172,7 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
     case 'regulation-capture':
       return {
         title: `${d.count} ${plural(d.count, 'pays que vous ne listez pas reçoit', 'pays que vous ne listez pas reçoivent')} ${c.configs(f.configs)}`,
-        mechanism: `${c.places(f.regions)} ${d.count > 1 ? 'relèvent' : 'relève'} de la réglementation ${c.regulation(d.regulation)} dans la table d’Axeptio. Aucun bandeau ne les liste, alors le SDK choisit parmi vos bandeaux ${c.regulation(d.regulation)}, selon la langue du visiteur.`,
+        mechanism: `${d.count > 1 ? 'Ces pays relèvent' : 'Ce pays relève'} de la réglementation ${c.regulation(d.regulation)} dans la table d’Axeptio (${c.places(f.regions)}). Aucun bandeau ne ${d.count > 1 ? 'les' : 'le'} liste, alors le SDK choisit parmi vos bandeaux ${c.regulation(d.regulation)}, selon la langue du visiteur.`,
         fix: 'Normal si vous voulez un seul bandeau pour toute la réglementation. Listez ces pays dans un bandeau s’ils ont besoin du leur.',
       };
     case 'subdivision-format': {
@@ -132,6 +181,16 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
         title: `Le code de région ${c.list(d.values)} n’est pas au format PAYS-RÉGION`,
         mechanism: `Le SDK compare des régions écrites comme CA-QC (pays, tiret, région). ${c.list(d.values)} ne matche jamais, donc ${c.configs(f.configs)} ${f.configs.length > 1 ? 'matchent' : 'matche'} seulement par pays, ce qui couvre tout le pays.`,
         fix: suggestion ? `Utilisez plutôt ${suggestion}.` : 'Écrivez la région au format PAYS-RÉGION, par exemple CA-QC.',
+      };
+    }
+    case 'unreachable-subdivision': {
+      const list = d.unreachable as UnreachableTarget[];
+      const values = c.list(list.map((u) => u.value));
+      const many = list.length > 1;
+      return {
+        title: `${values} ne ${many ? 'correspondent' : 'correspond'} à aucun visiteur`,
+        mechanism: `${c.configs(f.configs)} ${f.configs.length > 1 ? 'ciblent' : 'cible'} ${many ? 'ces régions' : 'cette région'}, mais Axeptio localise les visiteurs seulement par pays et par région de premier niveau : ${unreachableMoves(list, c)}. ${many ? 'Ces codes ne matchent' : 'Ce code ne matche'} jamais.`,
+        fix: unreachableFix(list, c),
       };
     }
     case 'unknown-country': {
@@ -149,11 +208,17 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
         fix: d.suggestion ? `Mettez sa réglementation à ${d.suggestion}.` : 'Choisissez une des réglementations ci-dessus.',
       };
     case 'invalid-page-rule':
-      return {
-        title: `Règle de page invalide : ${d.url}`,
-        mechanism: 'Cette expression régulière est invalide. Quand le SDK se rabat sur les règles de pages, il plante et peut n’afficher aucun bandeau.',
-        fix: 'Corrigez le motif, ou désactivez l’option regex de cette règle.',
-      };
+      return d.problem === 'malformed'
+        ? {
+            title: `Règle de page mal formée dans ${c.config(f.configs[0])}`,
+            mechanism: 'Une de ses règles de pages est mal formée. Quand le SDK se rabat sur les règles de pages, il plante et peut n’afficher aucun bandeau.',
+            fix: 'Supprimez la règle ou donnez-lui une URL, puis publiez.',
+          }
+        : {
+            title: `Règle de page invalide : ${d.url}`,
+            mechanism: 'Cette expression régulière est invalide. Quand le SDK se rabat sur les règles de pages, il plante et peut n’afficher aucun bandeau.',
+            fix: 'Corrigez le motif, ou désactivez l’option regex de cette règle.',
+          };
     case 'ab-test':
       return {
         title: `Le test A/B ${d.testId} est en cours`,
@@ -166,6 +231,7 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
 
 export const fr: Messages = {
   locale: 'fr-CA',
+  article: (name) => name,
   app: {
     title: 'Cookies Atlas',
     tagline: 'Quel bandeau Axeptio s’affiche dans chaque pays, et pourquoi.',
@@ -250,10 +316,11 @@ export const fr: Messages = {
     lists: (n) => `liste ${n} pays`,
     listsNothing: 'ne liste aucun pays',
     regionsTargeted: (n) => `${n} ${plural(n, 'région', 'régions')}`,
-    wins: (countries, regions) =>
-      countries + regions === 0
-        ? 'affiché nulle part'
-        : `affiché dans ${countries} pays${regions ? ` et ${regions} ${plural(regions, 'région', 'régions')}` : ''}`,
+    wins: (countries, regions) => {
+      const parts = [countries ? `${countries} pays` : '', regions ? `${regions} ${plural(regions, 'région', 'régions')}` : ''].filter(Boolean);
+      return parts.length ? `affiché dans ${parts.join(' et ')}` : 'affiché nulle part';
+    },
+    notDefault: (hasPageRules) => `affiché seulement si le site le fixe avec cookiesVersion${hasPageRules ? ', ou sur les pages que ses règles matchent' : ''}`,
     neverShown: 'Jamais affiché',
     fallback: 'Fallback',
     abTest: 'Test A/B',
@@ -296,7 +363,9 @@ export const fr: Messages = {
         ? `Le tie-break utilise la langue de la page (useDocumentLang) : ${raw ? `« ${raw} »` : 'vide'}${key ? ` → ${key}` : ''}.`
         : `Le tie-break utilise la langue du navigateur : ${raw ? `« ${raw} »` : 'aucune'}${key ? ` → ${key}` : ''}.`,
     regulation: (place, regulation, c) =>
-      regulation ? `${place} relève de la réglementation ${c.regulation(regulation)} dans la table d’Axeptio.` : `${place} n’a aucune réglementation dans la table d’Axeptio.`,
+      regulation
+        ? `Selon la table d’Axeptio, cet endroit (${place}) relève de la réglementation ${c.regulation(regulation)}.`
+        : `Selon la table d’Axeptio, cet endroit (${place}) n’a aucune réglementation.`,
     visibility: (allowed, passed, c) =>
       passed
         ? `La visibilité du bandeau est activée (${c.places(allowed, 6)}) : ce visiteur est admis.`
