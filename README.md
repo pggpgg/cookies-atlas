@@ -74,6 +74,7 @@ Axeptio's CDN adds to the project file.
 npm install
 npm run dev        # http://localhost:5173
 npm test           # engine, diagnostics, region table and drift-check tests
+npm run test:live  # replay the live sdk.js against the engine (needs access to static.axept.io)
 npm run build      # type-check + production build in dist/
 npm run build:geo  # regenerate public/data from Natural Earth (downloads ~65 MB once)
 ```
@@ -98,10 +99,14 @@ sdk-snapshot/     what the drift check compares against
   SDK function it mirrors. The tests are the contract: change the engine only when the SDK changes.
 - `src/engine/regions.ts` is the SDK's region table; a test fails if it differs from
   `sdk-snapshot/snapshot.json`.
-- **SDK drift check** (`.github/workflows/sdk-drift.yml`) runs every Monday: it downloads `sdk.js`,
-  extracts the region table, the regulation enum and fingerprints of the selection code, and opens
-  an issue labelled `sdk-drift` if anything moved. To update after reviewing the change:
-  port it to `src/engine/`, then run `npm run sdk:snapshot` and commit.
+- **Live replay.** `npm run test:live` cuts the selection code out of the live `sdk.js`, runs it in
+  an isolated `vm` context and compares it with the engine on ~100,000 visitor scenarios (every
+  country, Canadian provinces and US states, languages, `useDocumentLang`, `cookiesVersion`, page
+  rules, the three real projects and synthetic edge cases). At the time of writing: 0 differences.
+- **SDK drift check** (`.github/workflows/sdk-drift.yml`) runs every Monday: it compares the region
+  table, the regulation enum and fingerprints of the selection code with the snapshot, runs the live
+  replay, and opens an issue labelled `sdk-drift` if anything moved. To update after reviewing the
+  change: port it to `src/engine/`, then run `npm run sdk:snapshot` and commit.
 
 ## Deploying
 

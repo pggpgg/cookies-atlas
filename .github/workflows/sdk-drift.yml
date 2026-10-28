@@ -1,7 +1,10 @@
 name: SDK drift check
 
-# Weekly: download Axeptio's sdk.js and compare the parts Cookies Atlas mirrors
-# (region table, regulation enum, selection code) with sdk-snapshot/snapshot.json.
+# Weekly: download Axeptio's sdk.js, then
+#  1. compare the parts Cookies Atlas mirrors (region table, regulation enum, selection code
+#     fingerprints) with sdk-snapshot/snapshot.json, and
+#  2. replay the SDK's own selection code against the engine on ~100k visitor scenarios.
+# Opens (or updates) an issue labelled sdk-drift when either one finds a difference.
 on:
   schedule:
     - cron: '23 9 * * 1' # Mondays, 09:23 UTC
@@ -19,10 +22,18 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+          cache: npm
+      - run: npm ci
       - name: Compare sdk.js with the snapshot
         id: drift
         run: node scripts/sdk-drift/run.mjs --compare sdk-snapshot/snapshot.json --out drift
-      - name: Keep the report
+      - name: Replay the live SDK against the engine
+        id: live
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          SDK_LIVE=1 npx vitest run tests/sdk-live.test.mjs 2>&1 | tee drift/live.txt
+      - name: Keep the reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -30,14 +41,26 @@ jobs:
           path: drift/
           if-no-files-found: ignore
       - name: Open or update the drift issue
-        if: steps.drift.outputs.changed == 'true'
+        if: steps.drift.outputs.changed == 'true' || steps.live.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
+          LIVE_OUTCOME: ${{ steps.live.outcome }}
         run: |
+          {
+            cat drift/report.md
+            if [ "$LIVE_OUTCOME" = "failure" ]; then
+              echo
+              echo "### Live replay: the engine and sdk.js disagree"
+              echo
+              echo '```'
+              tail -n 80 drift/live.txt
+              echo '```'
+            fi
+          } > drift/issue.md
           gh label create sdk-drift --color FBCA04 --description "Axeptio's SDK changed" --force
           existing=$(gh issue list --label sdk-drift --state open --json number --jq '.[0].number')
           if [ -n "$existing" ]; then
-            gh issue comment "$existing" --body-file drift/report.md
+            gh issue comment "$existing" --body-file drift/issue.md
           else
-            gh issue create --title "Axeptio's SDK changed: check Cookies Atlas" --label sdk-drift --body-file drift/report.md
+            gh issue create --title "Axeptio's SDK changed: check Cookies Atlas" --label sdk-drift --body-file drift/issue.md
           fi

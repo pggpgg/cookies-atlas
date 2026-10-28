@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "build:geo": "node scripts/build-geo.mjs",
     "sdk:snapshot": "node scripts/sdk-drift/run.mjs --write sdk-snapshot/snapshot.json",
-    "sdk:check": "node scripts/sdk-drift/run.mjs --compare sdk-snapshot/snapshot.json --out drift"
+    "sdk:check": "node scripts/sdk-drift/run.mjs --compare sdk-snapshot/snapshot.json --out drift",
+    "test:live": "SDK_LIVE=1 vitest run tests/sdk-live.test.mjs"
   },
   "engines": {
     "node": ">=20"
