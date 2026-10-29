@@ -35,7 +35,23 @@
   --series-6: #008300;
   --series-7: #6250d6;
   --series-8: #e34948;
-  --series-other: #a8a7a2;
+  /* 9-24 extend the palette for the map (see src/app/colors.ts). */
+  --series-9: #00a0b0; /* teal */
+  --series-10: #8db600; /* lime */
+  --series-11: #9c2c9f; /* plum */
+  --series-12: #9a5a2a; /* brown */
+  --series-13: #3a2a8e; /* indigo */
+  --series-14: #a01f45; /* maroon */
+  --series-15: #62b3f0; /* sky */
+  --series-16: #7f7d00; /* olive */
+  --series-17: #c46ad6; /* orchid */
+  --series-18: #2fc6c0; /* turquoise */
+  --series-19: #b5441b; /* rust */
+  --series-20: #0077a8; /* cobalt */
+  --series-21: #c8a43c; /* gold */
+  --series-22: #3b5ba5; /* denim */
+  --series-23: #f4a261; /* apricot */
+  --series-24: #d1219e; /* fuchsia */
   --no-banner: #d6d5cf;
   --no-data: #efeeea;
   --dimmed: #e9e8e4;
@@ -73,7 +89,22 @@
     --series-6: #008300;
     --series-7: #9085e9;
     --series-8: #e66767;
-    --series-other: #6b6a66;
+    --series-9: #00a0b0; /* teal */
+    --series-10: #8db600; /* lime */
+    --series-11: #9f30a2; /* plum */
+    --series-12: #9a5a2a; /* brown */
+    --series-13: #5f57bf; /* indigo */
+    --series-14: #b23253; /* maroon */
+    --series-15: #5cade9; /* sky */
+    --series-16: #7f7d00; /* olive */
+    --series-17: #c46ad6; /* orchid */
+    --series-18: #1bbcb6; /* turquoise */
+    --series-19: #b5441b; /* rust */
+    --series-20: #0077a8; /* cobalt */
+    --series-21: #c4a037; /* gold */
+    --series-22: #4465b0; /* denim */
+    --series-23: #df8f4e; /* apricot */
+    --series-24: #d1219e; /* fuchsia */
     --no-banner: #3d3d39;
     --no-data: #262624;
     --dimmed: #2a2a28;
@@ -105,7 +136,22 @@
   --series-6: #008300;
   --series-7: #9085e9;
   --series-8: #e66767;
-  --series-other: #6b6a66;
+  --series-9: #00a0b0; /* teal */
+  --series-10: #8db600; /* lime */
+  --series-11: #9f30a2; /* plum */
+  --series-12: #9a5a2a; /* brown */
+  --series-13: #5f57bf; /* indigo */
+  --series-14: #b23253; /* maroon */
+  --series-15: #5cade9; /* sky */
+  --series-16: #7f7d00; /* olive */
+  --series-17: #c46ad6; /* orchid */
+  --series-18: #1bbcb6; /* turquoise */
+  --series-19: #b5441b; /* rust */
+  --series-20: #0077a8; /* cobalt */
+  --series-21: #c4a037; /* gold */
+  --series-22: #4465b0; /* denim */
+  --series-23: #df8f4e; /* apricot */
+  --series-24: #d1219e; /* fuchsia */
   --no-banner: #3d3d39;
   --no-data: #262624;
   --dimmed: #2a2a28;

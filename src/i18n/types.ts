@@ -118,7 +118,6 @@ export interface Messages {
     neverShown: string;
     fallback: string;
     abTest: string;
-    otherBanners: (n: number) => string;
     isolate: string;
     clearIsolation: string;
     noBanner: string;

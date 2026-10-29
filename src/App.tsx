@@ -174,7 +174,7 @@ export function App() {
     () =>
       project && evaluations
         ? assignColors(project, [evaluations.actual, evaluations.preview].filter((e): e is NonNullable<typeof e> => e !== null))
-        : { slotOf: new Map<string, number | 'other'>(), others: [] },
+        : { slotOf: new Map<string, number>() },
     [project, evaluations],
   );
 

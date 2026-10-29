@@ -103,7 +103,6 @@ export function Legend({ project, evaluation, colors, isolated, internal, deadId
           );
         })}
       </ul>
-      {colors.others.length > 0 && <p class="panel-note">{t.legend.otherBanners(colors.others.length)}</p>}
       <MapKey />
     </div>
   );

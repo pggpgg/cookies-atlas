@@ -338,7 +338,6 @@ export const fr: Messages = {
     neverShown: 'Jamais affiché',
     fallback: 'Fallback',
     abTest: 'Test A/B',
-    otherBanners: (n) => `${n} ${plural(n, 'autre bandeau', 'autres bandeaux')}`,
     isolate: 'Isoler sur la carte',
     clearIsolation: 'Afficher tous les bandeaux',
     noBanner: 'Aucun bandeau',

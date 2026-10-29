@@ -360,7 +360,6 @@ export const en: Messages = {
     neverShown: 'Never shown',
     fallback: 'Fallback',
     abTest: 'A/B test',
-    otherBanners: (n) => `${n} other ${plural(n, 'banner', 'banners')}`,
     isolate: 'Isolate on the map',
     clearIsolation: 'Show all banners',
     noBanner: 'No banner',

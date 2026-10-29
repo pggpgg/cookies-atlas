@@ -12,7 +12,7 @@ is a world map, a visitor simulator that explains each step, and diagnostics wri
 
 ## What it does
 
-- **Map.** Each banner gets a color. Places where the winner depends on the visitor's language are
+- **Map.** Each banner gets its own color, and gray only ever means "no banner". Places where the winner depends on the visitor's language are
   striped with each candidate's color; places no banner targets (reached through the regulation
   match, the fallback or the default) are drawn lighter. Canada and the US are drawn by province and
   state, and any other country gets split when a banner targets one of its regions.
