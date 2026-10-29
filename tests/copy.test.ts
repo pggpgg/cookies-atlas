@@ -50,12 +50,23 @@ const regions: AxeptioProject = {
   ],
 };
 
+// The banner a place gets changes with the visitor's language: shown and opt-in for some, hidden and opt-out for others.
+const languages: AxeptioProject = {
+  client: { cookiesSettings: { geolocation: true, geolocationFallbackConfigId: 'world' } },
+  cookies: [
+    cfg('jp-fr', { country: ['JP', 'KR'], language: 'fr', settings: { displayMode: 'show', consentMode: 'opt_in' } }),
+    cfg('jp-en', { country: ['JP', 'KR'], language: 'en', settings: { displayMode: 'hide', consentMode: 'opt_out' } }),
+    cfg('world', { language: 'en' }),
+  ],
+};
+
 const projects: Array<[string, AxeptioProject]> = [
   ['mackage', mackageJson as AxeptioProject],
   ['quilicot', quilicotJson as AxeptioProject],
   ['axeptio', axeptioJson as AxeptioProject],
   ['synthetic', synthetic],
   ['regions', regions],
+  ['languages', languages],
 ];
 
 describe.each(['en', 'fr'] as UiLanguage[])('finding copy (%s)', (ui) => {
@@ -106,5 +117,24 @@ describe('English place names in sentences', () => {
     expect(MESSAGES.en.article('The Bahamas')).toBe('the Bahamas');
     expect(MESSAGES.en.article('Vatican City')).toBe('Vatican City');
     expect(MESSAGES.en.article('Caribbean Netherlands')).toBe('the Caribbean Netherlands');
+  });
+});
+
+describe('language-dependent behavior copy', () => {
+  const [finding] = diagnose(languages, evaluateProject(languages, { mode: 'actual', visitor: { now: NOW } }), NOW).filter(
+    (f) => f.kind === 'language-behavior',
+  );
+  const copy = (ui: UiLanguage) => MESSAGES[ui].diagnostics.finding(finding, buildCopyContext(ui, languages, names));
+  it('says who gets what, in English', () => {
+    const { title, mechanism, fix } = copy('en');
+    expect(title).toBe("In Japan and South Korea, the display and consent modes depend on the visitor's language");
+    expect(mechanism).toMatch(/^In French and other languages, visitors get “jp-fr” \(shown, opt-in\); in English, “jp-en” \(hidden, opt-out\)\. /);
+    expect(fix).toContain('Give “jp-fr” and “jp-en” the same display and consent mode');
+  });
+  it('says who gets what, in French', () => {
+    const { title, mechanism, fix } = copy('fr');
+    expect(title).toBe('Japon et Corée du Sud : les modes d’affichage et de consentement dépendent de la langue du visiteur');
+    expect(mechanism).toMatch(/^En français et autres langues, les visiteurs reçoivent « jp-fr » \(affiché, opt-in\) ; en anglais, « jp-en » \(masqué, opt-out\)\. /);
+    expect(fix).toContain('Donnez les mêmes modes d’affichage et de consentement à « jp-fr » et « jp-en », ceux qu’exige la loi de ces endroits');
   });
 });

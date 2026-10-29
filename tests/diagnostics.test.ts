@@ -327,3 +327,90 @@ describe('region targeting diagnostics', () => {
     expect(Object.fromEntries(errors.map((f) => [f.configs[0], f.data.configKind]))).toEqual({ none: 'none', typo: 'unknown' });
   });
 });
+
+describe('banner behavior that depends on the visitor language', () => {
+  const cfg = (identifier: string, fields: Partial<AxeptioConfig> = {}): AxeptioConfig => ({
+    identifier,
+    name: identifier,
+    steps: [{ name: 'welcome', layout: 'welcome' }],
+    ...fields,
+  });
+  const modes = (displayMode: string, consentMode: string) => ({ settings: { displayMode, consentMode } });
+  const project = (cookies: AxeptioConfig[], geolocation = true): AxeptioProject => ({
+    client: { cookiesSettings: { geolocation, geolocationFallbackConfigId: 'world' } },
+    cookies,
+  });
+
+  it('flags a place where one language gets an opt-out banner and another an opt-in one', () => {
+    const findings = run(
+      project([
+        cfg('qc-fr', { country: ['CA'], subdivision: ['CA-QC'], regulation: 'loi25', language: 'fr', ...modes('show', 'opt_in') }),
+        cfg('qc-en', { country: ['CA'], subdivision: ['CA-QC'], regulation: 'loi25', language: 'en', ...modes('show', 'opt_out') }),
+        cfg('world', { language: 'en', regulation: 'gpdr' }),
+      ]),
+      'actual',
+    );
+    const [finding, ...others] = ofKind(findings, 'language-behavior');
+    expect(others).toEqual([]);
+    expect(finding.severity).toBe('error');
+    expect(finding.configs).toEqual(['qc-fr', 'qc-en']);
+    expect(finding.data).toEqual({
+      behaviors: [
+        // Other languages go by list order, so they get the French one.
+        { shown: true, optOut: false, configs: ['qc-fr'], languages: ['fr', '*'] },
+        { shown: true, optOut: true, configs: ['qc-en'], languages: ['en'] },
+      ],
+      display: false,
+      consent: true,
+    });
+    // Québec, and the rest of Canada the two banners capture through the country match.
+    expect(finding.regions).toContain('CA-QC');
+    expect(finding.regions).toContain('CA');
+    expect(finding.regions.every((r) => r.startsWith('CA'))).toBe(true);
+    // Errors come first.
+    expect(findings[0].severity).toBe('error');
+  });
+
+  it('groups places split the same way, and tells a display difference from a consent one', () => {
+    const findings = run(
+      project([
+        cfg('eu-fr', { country: ['FR', 'DE'], regulation: 'gpdr', language: 'fr', ...modes('show', 'opt_in') }),
+        cfg('eu-en', { country: ['FR', 'DE'], regulation: 'gpdr', language: 'en', ...modes('hide', 'opt_in') }),
+        cfg('world', { language: 'en' }),
+      ]),
+      'actual',
+    );
+    const found = ofKind(findings, 'language-behavior');
+    expect(found).toHaveLength(1);
+    // The countries they list, and the GDPR countries they get through the regulation match.
+    expect(found[0].regions).toEqual(expect.arrayContaining(['DE', 'FR', 'AT', 'IT']));
+    expect(found[0].regions).not.toContain('US');
+    expect(found[0].data).toMatchObject({ display: true, consent: false });
+  });
+
+  it('stays quiet when every language gets the same behavior, defaults included', () => {
+    const findings = run(
+      project([
+        cfg('qc-fr', { country: ['CA'], subdivision: ['CA-QC'], regulation: 'loi25', language: 'fr', ...modes('show', 'opt_in') }),
+        // No settings: the SDK's defaults, shown and opt-in.
+        cfg('qc-en', { country: ['CA'], subdivision: ['CA-QC'], regulation: 'loi25', language: 'en' }),
+        cfg('us', { country: ['US'], regulation: 'ccpa', language: 'en', ...modes('hide', 'opt_out') }),
+        cfg('world', { language: 'en' }),
+      ]),
+      'actual',
+    );
+    expect(ofKind(findings, 'language-behavior')).toEqual([]);
+  });
+
+  it('describes the preview when location-based display is off (today, language never decides)', () => {
+    const cookies = [
+      cfg('eu-fr', { country: ['FR'], regulation: 'gpdr', language: 'fr', ...modes('show', 'opt_in') }),
+      cfg('eu-en', { country: ['FR'], regulation: 'gpdr', language: 'en', ...modes('show', 'opt_out') }),
+      cfg('world', { language: 'en' }),
+    ];
+    expect(ofKind(run(project(cookies, false), 'actual'), 'language-behavior')).toEqual([]);
+    const previewed = ofKind(run(project(cookies, false), 'preview'), 'language-behavior');
+    expect(previewed).toHaveLength(1);
+    expect(previewed[0].regions).toContain('FR');
+  });
+});

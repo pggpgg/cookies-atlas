@@ -105,38 +105,6 @@ export function Legend({ project, evaluation, colors, isolated, internal, deadId
           );
         })}
       </ul>
-      <MapKey />
-    </div>
-  );
-}
-
-export function MapKey() {
-  const { t } = useI18n();
-  return (
-    <div class="map-key">
-      <h3>{t.map.keyTitle}</h3>
-      <ul>
-        <li>
-          <span class="key-swatch key-solid" />
-          {t.map.keySolid}
-        </li>
-        <li>
-          <span class="key-swatch key-light" />
-          {t.map.keyLight}
-        </li>
-        <li>
-          <span class="key-swatch key-striped" />
-          {t.map.keyStriped}
-        </li>
-        <li>
-          <span class="key-swatch key-none" />
-          {t.map.keyNone}
-        </li>
-        <li>
-          <span class="key-pin" />
-          {t.map.keyYou}
-        </li>
-      </ul>
     </div>
   );
 }

@@ -15,20 +15,25 @@ is a world map, a visitor simulator that explains each step, and diagnostics wri
 - **Map.** Each banner gets its own color, and gray only ever means "no banner". Places where the winner depends on the visitor's language are
   striped with each candidate's color; places no banner targets (reached through the regulation
   match, the fallback or the default) are drawn lighter. Canada and the US are drawn by province and
-  state, and any other country gets split when a banner targets one of its regions.
+  state, and any other country gets split when a banner targets one of its regions. The key ("How to
+  read the map") sits above the side panel, so it stays visible on every tab.
 - **Visitor language.** Show every outcome, or pick one language to see the exact winner.
-- **Display and consent mode.** Each banner shows whether it opens by itself or stays hidden (`displayMode`), and whether it is opt-in or opt-out (`consentMode`), with a tooltip that explains what each means for visitors.
+- **Display and consent mode.** Each banner shows whether it opens by itself or stays hidden
+  (`displayMode`), and whether it is opt-in or opt-out (`consentMode`): in the legend (with a tooltip
+  that explains what each means for visitors), the simulator, the map's hover tooltip and the table.
 - **Simulator.** Pick a place, a browser language, a page language (`html lang`), the tie-break logic
   (browser vs `useDocumentLang`), and optionally `cookiesVersion` or a page path. You get the banner
   and the SDK's steps in order, in plain words.
 - **Diagnostics.** Banners that can never show, region banners that capture a whole country,
   consent-first regions getting an opt-out banner, listings that never win, malformed region or
   country codes, region codes no visitor is ever located in (a French department instead of its
-  region, `US-PR` instead of the country `PR`), missing fallback, banner-visibility settings,
-  running A/B tests. Each one explains the mechanism and the fix.
+  region, `US-PR` instead of the country `PR`), places where the visitor's language changes whether
+  the banner opens or whether it's opt-in, missing fallback, banner-visibility settings, running A/B
+  tests. Each one explains the mechanism and the fix.
 - **Location-based display off?** You see what visitors get today, plus a preview of the map as if it
   were on.
-- **Table** of every place (the accessible twin of the map), **PNG export**, **shareable links**,
+- **Table** of every place (the accessible twin of the map) with a **CSV export** (one line per place
+  and banner, with its modes; semicolon-separated where Excel expects it), **PNG export**, **shareable links**,
   **"you are here"** from the same CDN headers Axeptio uses, FR/EN, light and dark themes.
 
 ## How the SDK picks a banner (and so does the map)
@@ -125,8 +130,9 @@ région, et pourquoi. Collez un ID de projet : l'outil lit le fichier public du 
 rejoue les règles de sélection du SDK (région, pays unique, multi-pays, réglementation, fallback,
 puis tie-break de langue). Le simulateur explique chaque étape pour un visiteur donné, le
 diagnostic signale les bandeaux qui ne s'affichent jamais, les bandeaux régionaux qui captent tout
-un pays, les régions où le consentement est requis qui reçoivent un bandeau opt-out, et plus. Le
-favori (bookmarklet) ouvre la carte de n'importe quel site qui utilise Axeptio. Interface en
+un pays, les régions où le consentement est requis qui reçoivent un bandeau opt-out, les endroits où
+la langue du visiteur change le mode d'affichage ou de consentement, et plus. Le tableau s'exporte
+en CSV. Le favori (bookmarklet) ouvre la carte de n'importe quel site qui utilise Axeptio. Interface en
 français et en anglais.
 
 ## Credits

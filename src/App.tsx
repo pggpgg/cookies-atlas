@@ -8,6 +8,7 @@ import { EmptyState, Footer, GeoOffBanner, Header, LoadErrorMessage, Summary, ty
 import { Diagnostics } from './components/Diagnostics';
 import { Icon } from './components/Icon';
 import { coverageOf, Legend } from './components/Legend';
+import { MapKey } from './components/MapKey';
 import { MapView } from './components/MapView';
 import { RegionTable } from './components/RegionTable';
 import { Simulator, type SimulatorState } from './components/Simulator';
@@ -29,6 +30,17 @@ function readTheme(): ThemeChoice {
 }
 
 const browserLanguage = () => (typeof navigator !== 'undefined' && navigator.language) || 'en';
+
+/** File names for exports: "Boutique Été" gives "cookies-atlas-boutique-ete". */
+const fileStem = (name: string) =>
+  `cookies-atlas-${
+    name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || 'map'
+  }`;
 
 export function App() {
   const initial = useMemo(() => readUrlState(), []);
@@ -62,6 +74,7 @@ export function App() {
   const [copied, setCopied] = useState<'map' | 'scenario' | null>(null);
   const [exporting, setExporting] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
+  const panelBodyRef = useRef<HTMLDivElement>(null);
   const internal = initial.internal ?? false;
 
   const project = loaded?.project ?? null;
@@ -154,6 +167,11 @@ export function App() {
   useEffect(() => {
     document.title = project?.projectName ? `${project.projectName} · Cookies Atlas` : 'Cookies Atlas';
   }, [project]);
+
+  // Each tab opens at its top, not where the previous one was scrolled.
+  useEffect(() => {
+    if (panelBodyRef.current) panelBodyRef.current.scrollTop = 0;
+  }, [tab]);
 
   // --- Derived data ----------------------------------------------------------------------------
   const now = loaded?.fetchedAt ?? Date.now();
@@ -327,7 +345,7 @@ export function App() {
           { color: resolve('var(--no-banner)'), label: t.map.keyNone },
         ],
         footer: `Cookies Atlas · ${c.date(new Date().toISOString())} · ${shareUrl({ ...urlState, internal: false })}`,
-        fileName: `cookies-atlas-${(project.projectName || project.projectId || 'map').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`,
+        fileName: `${fileStem(project.projectName || project.projectId || '')}.png`,
       });
     } catch (err) {
       console.error(err);
@@ -418,6 +436,7 @@ export function App() {
                   </div>
                   {world ? (
                     <MapView
+                      project={project}
                       world={world}
                       splits={splits}
                       evaluation={evaluation}
@@ -439,74 +458,84 @@ export function App() {
                   <figcaption class="sr-only">{t.map.ariaLabel(project.projectName ?? '')}</figcaption>
                 </figure>
 
-                <aside class="panel">
-                  <div class="tabs" role="tablist">
-                    {(['banners', 'simulator', 'diagnostics', 'table'] as Tab[]).map((name) => (
-                      <button
-                        key={name}
-                        type="button"
-                        role="tab"
-                        id={`tab-${name}`}
-                        aria-selected={tab === name}
-                        aria-controls={`panel-${name}`}
-                        onClick={() => setTab(name)}
-                      >
-                        {t.tabs[name]}
-                        {name === 'diagnostics' && counts.error + counts.warning > 0 && (
-                          <span class={`count ${counts.error ? 'count-error' : 'count-warning'}`}>{counts.error + counts.warning}</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  <div class="panel-body" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-                    {tab === 'banners' && (
-                      <Legend
-                        project={project}
-                        evaluation={evaluation}
-                        colors={colors}
-                        isolated={isolated}
-                        internal={internal}
-                        deadIds={deadIds}
-                        today={!geolocationOn && mode === 'actual'}
-                        onHover={setHovered}
-                        onIsolate={isolate}
-                      />
-                    )}
-                    {tab === 'simulator' && (
-                      <Simulator
-                        project={project}
-                        mode={mode}
-                        colors={colors}
-                        countries={countryOptions}
-                        state={{ ...sim, region: simRegion }}
-                        internal={internal}
-                        onChange={(patch) => setSim((s) => ({ ...s, ...patch }))}
-                        onCopyLink={() => copyLink(true)}
-                        linkCopied={copied === 'scenario'}
-                      />
-                    )}
-                    {tab === 'diagnostics' && (
-                      <Diagnostics
-                        project={project}
-                        findings={findings}
-                        colors={colors}
-                        preview={!geolocationOn}
-                        activeFinding={activeFinding?.id ?? null}
-                        onShow={(f) => {
-                          setActiveFinding(f);
-                          if (f) setIsolated(null);
-                        }}
-                        onIsolate={(id) => {
-                          isolate(id);
-                          setTab('banners');
-                        }}
-                      />
-                    )}
-                    {tab === 'table' && (
-                      <RegionTable project={project} evaluation={evaluation} colors={colors} language={effectiveLanguage} onSelect={selectRegion} />
-                    )}
-                  </div>
-                </aside>
+                <div class="side">
+                  <MapKey />
+                  <aside class="panel">
+                    <div class="tabs" role="tablist">
+                      {(['banners', 'simulator', 'diagnostics', 'table'] as Tab[]).map((name) => (
+                        <button
+                          key={name}
+                          type="button"
+                          role="tab"
+                          id={`tab-${name}`}
+                          aria-selected={tab === name}
+                          aria-controls={`panel-${name}`}
+                          onClick={() => setTab(name)}
+                        >
+                          {t.tabs[name]}
+                          {name === 'diagnostics' && counts.error + counts.warning > 0 && (
+                            <span class={`count ${counts.error ? 'count-error' : 'count-warning'}`}>{counts.error + counts.warning}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                    <div ref={panelBodyRef} class="panel-body" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
+                      {tab === 'banners' && (
+                        <Legend
+                          project={project}
+                          evaluation={evaluation}
+                          colors={colors}
+                          isolated={isolated}
+                          internal={internal}
+                          deadIds={deadIds}
+                          today={!geolocationOn && mode === 'actual'}
+                          onHover={setHovered}
+                          onIsolate={isolate}
+                        />
+                      )}
+                      {tab === 'simulator' && (
+                        <Simulator
+                          project={project}
+                          mode={mode}
+                          colors={colors}
+                          countries={countryOptions}
+                          state={{ ...sim, region: simRegion }}
+                          internal={internal}
+                          onChange={(patch) => setSim((s) => ({ ...s, ...patch }))}
+                          onCopyLink={() => copyLink(true)}
+                          linkCopied={copied === 'scenario'}
+                        />
+                      )}
+                      {tab === 'diagnostics' && (
+                        <Diagnostics
+                          project={project}
+                          findings={findings}
+                          colors={colors}
+                          preview={!geolocationOn}
+                          activeFinding={activeFinding?.id ?? null}
+                          onShow={(f) => {
+                            setActiveFinding(f);
+                            if (f) setIsolated(null);
+                          }}
+                          onIsolate={(id) => {
+                            isolate(id);
+                            setTab('banners');
+                          }}
+                        />
+                      )}
+                      {tab === 'table' && (
+                        <RegionTable
+                          project={project}
+                          evaluation={evaluation}
+                          colors={colors}
+                          language={effectiveLanguage}
+                          fileStem={fileStem(project.projectName || project.projectId || '')}
+                          onSelect={selectRegion}
+                        />
+                      )}
+                    </div>
+                  </aside>
+                </div>
               </div>
             </div>
           )}

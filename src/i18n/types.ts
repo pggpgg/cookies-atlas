@@ -219,6 +219,26 @@ export interface Messages {
     banner: string;
     none: string;
     rows: (n: number) => string;
+    exportCsv: string;
+    exportHint: string;
+    /** Column headers and values of the CSV export. */
+    csv: {
+      code: string;
+      country: string;
+      region: string;
+      /** Region column of a country drawn by region: its own line covers the regions no banner targets. */
+      otherRegions: string;
+      languages: string;
+      allLanguages: string;
+      /** In a list of languages ("French, other languages"); the cell's first letter is capitalized. */
+      otherLanguages: string;
+      banner: string;
+      display: string;
+      consent: string;
+      how: string;
+      regulation: string;
+      bannerId: string;
+    };
   };
   bookmarklet: { title: string; body: string; linkLabel: string; notFound: string };
   empty: { title: string; body: string; steps: string[] };

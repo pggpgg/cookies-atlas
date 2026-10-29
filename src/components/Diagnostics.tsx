@@ -3,6 +3,7 @@ import type { Finding } from '../engine/diagnostics';
 import type { AxeptioProject } from '../engine/types';
 import { useI18n } from '../i18n';
 import { Icon } from './Icon';
+import { ModeIcons } from './Modes';
 
 interface DiagnosticsProps {
   project: AxeptioProject;
@@ -18,7 +19,11 @@ const SEVERITY_ICON = { error: 'error', warning: 'warning', info: 'info' } as co
 
 export function Diagnostics({ project, findings, colors, preview, activeFinding, onShow, onIsolate }: DiagnosticsProps) {
   const { t, c } = useI18n();
-  const names = new Map((project.cookies ?? []).map((cfg) => [cfg.identifier, cfg.name || cfg.title || cfg.identifier]));
+  const configs = new Map((project.cookies ?? []).map((cfg) => [cfg.identifier, cfg]));
+  const nameOf = (id: string) => {
+    const cfg = configs.get(id)!;
+    return cfg.name || cfg.title || id;
+  };
   return (
     <div class="diagnostics">
       <p class="panel-intro">{t.diagnostics.intro}</p>
@@ -51,11 +56,13 @@ export function Diagnostics({ project, findings, colors, preview, activeFinding,
               )}
               <div class="finding-actions">
                 {f.configs
-                  .filter((id) => names.has(id))
+                  .filter((id) => configs.has(id))
                   .map((id) => (
                     <button type="button" class="chip" key={id} onClick={() => onIsolate(id)} title={t.legend.isolate}>
                       <span class="chip-swatch" style={{ background: colorOf(colors, id) }} />
-                      {names.get(id)}
+                      {nameOf(id)}
+                      {/* The finding is about these modes: show them on its banners. */}
+                      {f.kind === 'language-behavior' && <ModeIcons config={configs.get(id)!} />}
                     </button>
                   ))}
                 {f.regions.length > 0 && (

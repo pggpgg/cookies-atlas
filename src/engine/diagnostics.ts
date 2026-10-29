@@ -14,6 +14,7 @@ import {
   type ReportedAs,
 } from './evaluate';
 import { COUNTRY_CODE_FIXES, ISO_3166_1 } from './iso-3166';
+import { modesOf } from './modes';
 import { OPT_IN_REGULATIONS, OPT_OUT_REGULATIONS, REGULATIONS } from './regions';
 import { langKey, pageMatches, sameRegulation, type Selection, type TraceEntry } from './select';
 import type { AxeptioConfig, AxeptioProject, PageRule } from './types';
@@ -37,6 +38,7 @@ export type FindingKind =
   | 'unknown-country'
   | 'unknown-regulation'
   | 'invalid-page-rule'
+  | 'language-behavior'
   | 'ab-test';
 
 /** Why a config loses where it should win. */
@@ -46,6 +48,19 @@ export type LossReason = 'order' | 'specificity' | 'regulation' | 'untargeted' |
 export interface UnreachableTarget {
   value: string;
   instead: ReportedAs;
+}
+
+/**
+ * How the banner a place gets behaves for some of its visitor languages: whether it opens by
+ * itself (displayMode) and whether it's opt-out (consentMode).
+ */
+export interface LanguageBehavior {
+  shown: boolean;
+  optOut: boolean;
+  /** Banners with this behavior there, in list order. */
+  configs: string[];
+  /** Language keys (OTHER_LANGUAGE included) whose visitors get one of them. */
+  languages: string[];
 }
 
 /** How a banner's regulation relates to consent: opt-in laws, opt-out laws, none set, or a value the SDK doesn't know. */
@@ -106,6 +121,28 @@ export function unreachableTargetsOf(config: AxeptioConfig): UnreachableTarget[]
       const instead = reportedInstead(value);
       return instead ? [{ value, instead }] : [];
     });
+}
+
+/**
+ * The behaviors a place's banner has across visitor languages, in language order. More than one
+ * means the visitor's language changes whether the banner opens, or whether consent comes first.
+ */
+export function languageBehaviors(outcome: RegionOutcome, languages: string[], configs: AxeptioConfig[]): LanguageBehavior[] {
+  const order = new Map(configs.map((c, i) => [c.identifier, i]));
+  const byId = new Map(configs.map((c) => [c.identifier, c]));
+  const out: LanguageBehavior[] = [];
+  for (const language of languages) {
+    const id = outcome.byLanguage[language];
+    const config = id ? byId.get(id) : undefined;
+    if (!config) continue;
+    const { shown, optOut } = modesOf(config);
+    let behavior = out.find((b) => b.shown === shown && b.optOut === optOut);
+    if (!behavior) out.push((behavior = { shown, optOut, configs: [], languages: [] }));
+    if (!behavior.configs.includes(config.identifier)) behavior.configs.push(config.identifier);
+    behavior.languages.push(language);
+  }
+  for (const b of out) b.configs.sort((a, z) => (order.get(a) ?? 0) - (order.get(z) ?? 0));
+  return out;
 }
 
 /** The candidate step that picked the winner in a selection, if any. */
@@ -533,6 +570,37 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
     }
   }
   findings.push(...ties.values());
+
+  // Language-dependent behavior: in one place, the banner some visitor languages get opens by itself
+  // (or is opt-out) and the one others get doesn't. One law applies there, whatever the language.
+  // Places split the same way between the same banners share one finding.
+  const behaviorSplits = new Map<string, Finding>();
+  for (const outcome of regions) {
+    const behaviors = languageBehaviors(outcome, evaluation.languages, configs);
+    if (behaviors.length < 2) continue;
+    const id =
+      'language-behavior:' +
+      behaviors.map((b) => `${b.shown ? 'shown' : 'hidden'}/${b.optOut ? 'opt-out' : 'opt-in'}=${b.configs.join('+')}@${b.languages.join('+')}`).join('|');
+    const existing = behaviorSplits.get(id);
+    if (existing) {
+      existing.regions.push(outcome.key);
+      continue;
+    }
+    behaviorSplits.set(id, {
+      id,
+      kind: 'language-behavior',
+      severity: 'error',
+      configs: [...new Set(behaviors.flatMap((b) => b.configs))],
+      regions: [outcome.key],
+      data: {
+        behaviors,
+        display: new Set(behaviors.map((b) => b.shown)).size > 1,
+        consent: new Set(behaviors.map((b) => b.optOut)).size > 1,
+      },
+    });
+  }
+  for (const finding of behaviorSplits.values()) finding.regions.sort();
+  findings.push(...behaviorSplits.values());
 
   // Running A/B tests.
   for (const test of project.abTests ?? []) {

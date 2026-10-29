@@ -1,4 +1,5 @@
-import type { Finding, UnreachableTarget } from '../engine/diagnostics';
+import type { Finding, LanguageBehavior, UnreachableTarget } from '../engine/diagnostics';
+import { OTHER_LANGUAGE } from '../engine/evaluate';
 import type { CopyContext, FindingCopy, Messages } from './types';
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
@@ -232,6 +233,22 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
             mechanism: 'Cette expression régulière est invalide. Quand le SDK se rabat sur les règles de pages, il plante et peut n’afficher aucun bandeau.',
             fix: 'Corrigez le motif, ou désactivez l’option regex de cette règle.',
           };
+    case 'language-behavior': {
+      const behaviors = d.behaviors as LanguageBehavior[];
+      const both = d.display && d.consent;
+      const shown = (b: LanguageBehavior) => (b.shown ? 'affiché' : 'masqué') + (b.configs.length > 1 ? 's' : '');
+      const label = (b: LanguageBehavior) => [d.display ? shown(b) : '', d.consent ? (b.optOut ? 'opt-out' : 'opt-in') : ''].filter(Boolean).join(', ');
+      const languages = (keys: string[]) => c.list(keys.map((k) => (k === OTHER_LANGUAGE ? 'autres langues' : c.language(k))));
+      const who = behaviors.map((b, i) => `en ${languages(b.languages)}, ${i === 0 ? 'les visiteurs reçoivent ' : ''}${c.configs(b.configs)} (${label(b)})`);
+      const where = f.regions.length === 1 ? 'cet endroit' : 'ces endroits';
+      const subject = both ? 'les modes d’affichage et de consentement' : d.display ? 'le mode d’affichage' : 'le mode de consentement';
+      const same = both ? 'les mêmes modes d’affichage et de consentement' : d.display ? 'le même mode d’affichage' : 'le même mode de consentement';
+      return {
+        title: `${c.places(f.regions, 3)} : ${subject} ${both ? 'dépendent' : 'dépend'} de la langue du visiteur`,
+        mechanism: `${cap(who.join(' ; '))}. Quand plusieurs bandeaux matchent un endroit, le SDK en choisit un selon la langue du visiteur : au même endroit, ${subject} ${both ? 'changent' : 'change'} donc selon la langue, alors que la même loi s’applique à tous.`,
+        fix: `Donnez ${same} à ${c.configs(f.configs)}, ${both ? 'ceux' : 'celui'} qu’exige la loi de ${where}${d.consent ? ' (opt-in sous le RGPD, la Loi 25 ou la LGPD)' : ''}. Si l’un d’eux a besoin d’un autre réglage ailleurs, donnez à ${where} des bandeaux à part.`,
+      };
+    }
     case 'ab-test':
       return {
         title: `Le test A/B ${d.testId} est en cours`,
@@ -493,6 +510,23 @@ export const fr: Messages = {
     banner: 'Bandeau selon la langue',
     none: 'Aucun',
     rows: (n) => `${n} ${plural(n, 'endroit', 'endroits')}`,
+    exportCsv: 'Exporter en CSV',
+    exportHint: 'Télécharger les endroits listés, une ligne par endroit et par bandeau, avec le mode d’affichage et de consentement de chaque bandeau.',
+    csv: {
+      code: 'Code',
+      country: 'Pays',
+      region: 'Région',
+      otherRegions: 'Autres régions',
+      languages: 'Langues des visiteurs',
+      allLanguages: 'Toutes',
+      otherLanguages: 'autres langues',
+      banner: 'Bandeau',
+      display: 'Mode d’affichage',
+      consent: 'Mode de consentement',
+      how: 'Comment le SDK le choisit',
+      regulation: 'Réglementation de l’endroit',
+      bannerId: 'ID du bandeau',
+    },
   },
   bookmarklet: {
     title: 'Favori',

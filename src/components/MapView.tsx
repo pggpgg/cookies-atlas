@@ -10,8 +10,10 @@ import type { CountryFile, CountryProps } from '../app/geo';
 import type { ViewerLocation } from '../app/project';
 import { outcomeForFeature, regionKey, winnersFor, type Evaluation, type RegionOutcome } from '../engine/evaluate';
 import type { SelectionStep } from '../engine/select';
+import type { AxeptioConfig, AxeptioProject } from '../engine/types';
 import { useI18n } from '../i18n';
 import { Icon } from './Icon';
+import { ModeIcons } from './Modes';
 
 export const MAP_WIDTH = 960;
 export const MAP_HEIGHT = 470;
@@ -43,6 +45,7 @@ export interface HoverInfo {
 }
 
 export interface MapViewProps {
+  project: AxeptioProject;
   world: Array<Feature<Geometry, CountryProps>>;
   splits: CountryFile[];
   evaluation: Evaluation;
@@ -64,7 +67,8 @@ const patternId = (winners: Array<string | null>) =>
 
 export function MapView(props: MapViewProps) {
   const { t, ui, c } = useI18n();
-  const { world, splits, evaluation, colors, language, focus, highlight, selected, viewer } = props;
+  const { project, world, splits, evaluation, colors, language, focus, highlight, selected, viewer } = props;
+  const configs = useMemo(() => new Map((project.cookies ?? []).map((cfg) => [cfg.identifier, cfg])), [project]);
   const containerRef = useRef<HTMLDivElement>(null);
   const localSvgRef = useRef<SVGSVGElement>(null);
   const gRef = useRef<SVGGElement>(null);
@@ -335,6 +339,7 @@ export function MapView(props: MapViewProps) {
           name={hover.item.isSubdivision ? `${hoverName}, ${c.country(hover.item.country)}` : hoverName}
           outcome={hover.outcome}
           evaluation={evaluation}
+          configs={configs}
           colors={colors}
           language={language}
           isViewer={isViewerItem(hover.item)}
@@ -351,6 +356,7 @@ function MapTooltip(props: {
   name: string;
   outcome: RegionOutcome | undefined;
   evaluation: Evaluation;
+  configs: ReadonlyMap<string, AxeptioConfig>;
   colors: ColorAssignment;
   language: string | 'all';
   isViewer: boolean;
@@ -368,7 +374,7 @@ function MapTooltip(props: {
       else rows.push({ winner, languages: [lang] });
     }
   }
-  const left = Math.min(props.x + 14, Math.max(8, props.width - 280));
+  const left = Math.min(props.x + 14, Math.max(8, props.width - 300));
   return (
     <div class="map-tooltip" style={{ left: `${left}px`, top: `${props.y + 14}px` }} role="tooltip">
       <div class="tt-title">{props.name}</div>
@@ -377,13 +383,19 @@ function MapTooltip(props: {
         {outcome && <> · {t.steps[outcome.step]}</>}
       </div>
       <ul class="tt-rows">
-        {rows.map((r) => (
-          <li key={r.winner ?? 'none'}>
-            <span class="line-key" style={{ background: colorOf(props.colors, r.winner) }} />
-            <strong>{c.config(r.winner)}</strong>
-            {props.language === 'all' && rows.length > 1 && <span class="tt-langs">{r.languages.map((l) => c.language(l)).join(', ')}</span>}
-          </li>
-        ))}
+        {rows.map((r) => {
+          const config = r.winner ? props.configs.get(r.winner) : undefined;
+          return (
+            <li key={r.winner ?? 'none'}>
+              <span class="line-key" style={{ background: colorOf(props.colors, r.winner) }} />
+              <span class="tt-banner">
+                <strong>{c.config(r.winner)}</strong>
+                {props.language === 'all' && rows.length > 1 && <span class="tt-langs"> {r.languages.map((l) => c.language(l)).join(', ')}</span>}
+              </span>
+              {config && <ModeIcons config={config} />}
+            </li>
+          );
+        })}
       </ul>
       {outcome?.abTests.map((ab) => (
         <div class="tt-note" key={ab.testId}>

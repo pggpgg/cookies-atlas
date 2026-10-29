@@ -1,4 +1,5 @@
-import type { Finding, UnreachableTarget } from '../engine/diagnostics';
+import type { Finding, LanguageBehavior, UnreachableTarget } from '../engine/diagnostics';
+import { OTHER_LANGUAGE } from '../engine/evaluate';
 import type { CopyContext, FindingCopy, Messages } from './types';
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
@@ -251,6 +252,21 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
             mechanism: 'This regular expression is invalid. When the SDK falls back to page rules, it throws an error and may show no banner at all.',
             fix: 'Fix the pattern, or turn off the regex option for this rule.',
           };
+    case 'language-behavior': {
+      const behaviors = d.behaviors as LanguageBehavior[];
+      const both = d.display && d.consent;
+      const mode = both ? 'display and consent mode' : d.display ? 'display mode' : 'consent mode';
+      const label = (b: LanguageBehavior) =>
+        [d.display ? (b.shown ? 'shown' : 'hidden') : '', d.consent ? (b.optOut ? 'opt-out' : 'opt-in') : ''].filter(Boolean).join(', ');
+      const languages = (keys: string[]) => c.list(keys.map((k) => (k === OTHER_LANGUAGE ? 'other languages' : c.language(k))));
+      const who = behaviors.map((b, i) => `in ${languages(b.languages)}, ${i === 0 ? 'visitors get ' : ''}${c.configs(b.configs)} (${label(b)})`);
+      const where = f.regions.length === 1 ? 'this place' : 'these places';
+      return {
+        title: `In ${c.placesIn(f.regions, 3)}, the ${both ? 'display and consent modes depend' : `${mode} depends`} on the visitor's language`,
+        mechanism: `${cap(who.join('; '))}. Where several banners match a place, the SDK picks one by visitor language, so visitors in the same place get a different ${mode}, though the same law applies to all of them.`,
+        fix: `Give ${c.configs(f.configs)} the same ${mode}, the one the law of ${where} calls for${d.consent ? ' (opt-in under GDPR, Law 25 or LGPD)' : ''}. If one of them needs a different ${mode} elsewhere, give ${where} banners of their own.`,
+      };
+    }
     case 'ab-test':
       return {
         title: `A/B test ${d.testId} is running`,
@@ -511,6 +527,23 @@ export const en: Messages = {
     banner: 'Banner by language',
     none: 'None',
     rows: (n) => `${n} ${plural(n, 'place', 'places')}`,
+    exportCsv: 'Export CSV',
+    exportHint: 'Download the places listed, one line per place and banner, with each banner’s display and consent mode.',
+    csv: {
+      code: 'Code',
+      country: 'Country',
+      region: 'Region',
+      otherRegions: 'Other regions',
+      languages: 'Visitor languages',
+      allLanguages: 'All',
+      otherLanguages: 'other languages',
+      banner: 'Banner',
+      display: 'Display mode',
+      consent: 'Consent mode',
+      how: 'How the SDK picks it',
+      regulation: 'Regulation of the place',
+      bannerId: 'Banner ID',
+    },
   },
   bookmarklet: {
     title: 'Bookmarklet',

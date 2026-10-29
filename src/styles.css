@@ -1104,7 +1104,7 @@ fieldset.segmented {
   position: absolute;
   z-index: 5;
   width: max-content;
-  max-width: 280px;
+  max-width: 300px;
   padding: 10px 12px;
   background: var(--surface-1);
   border: 1px solid var(--border);
@@ -1134,9 +1134,14 @@ fieldset.segmented {
 }
 
 .tt-rows li {
-  display: flex;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 7px;
+  column-gap: 7px;
+}
+
+.tt-banner {
+  min-width: 0;
 }
 
 .tt-langs {
@@ -1156,12 +1161,22 @@ fieldset.segmented {
 
 /* ---------- Panel ---------- */
 
-.panel {
+/* The right column: the map key, then the tabbed panel, which scrolls inside what's left. */
+.side {
   display: flex;
   flex-direction: column;
+  gap: 12px;
+  min-width: 0;
   max-height: calc(100vh - 92px);
   position: sticky;
   top: 76px;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
 }
 
 .tabs {
@@ -1334,6 +1349,21 @@ fieldset.segmented {
   background: var(--surface-2);
 }
 
+/* The same icons without tooltips (map tooltip, table, buttons, map key). */
+.modes-static {
+  gap: 1px;
+  vertical-align: middle;
+}
+
+.mode-static {
+  padding: 1px;
+  cursor: inherit;
+}
+
+.mode-static:hover {
+  background: none;
+}
+
 .mode-shown {
   color: var(--link);
 }
@@ -1390,36 +1420,83 @@ fieldset.segmented {
   background: var(--surface-2);
 }
 
+/* Map key: above the panel, visible on every tab. */
 .map-key {
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
+  flex: none;
+  padding: 0 14px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
 }
 
-.map-key h3 {
+.map-key summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 0;
+  list-style: none;
+  cursor: pointer;
+}
+
+.map-key summary::-webkit-details-marker {
+  display: none;
+}
+
+.map-key h2 {
+  margin: 0;
   font-size: 0.9rem;
-  margin-bottom: 8px;
 }
 
-.map-key ul {
+.map-key-chevron {
+  display: inline-flex;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+
+.map-key[open] .map-key-chevron {
+  transform: rotate(180deg);
+}
+
+.map-key summary:hover .map-key-chevron {
+  color: var(--text-primary);
+}
+
+.key-items {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  gap: 6px;
-  font-size: 0.86rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 16px;
+  font-size: 0.84rem;
+  line-height: 1.35;
   color: var(--text-secondary);
 }
 
-.map-key li {
+.key-items li {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  min-width: 0;
+}
+
+.key-modes {
+  gap: 5px 14px;
+  margin-top: 8px;
+  padding: 8px 0 12px;
+  border-top: 1px solid var(--border);
+}
+
+.key-modes li {
+  gap: 4px;
 }
 
 .key-swatch {
   flex: none;
-  width: 22px;
-  height: 14px;
+  width: 20px;
+  height: 13px;
   border-radius: 4px;
 }
 
@@ -1624,8 +1701,26 @@ fieldset.segmented {
 
 /* Table */
 
-.region-table .field-inline {
-  margin-bottom: 10px;
+.table-filter {
+  margin-bottom: 6px;
+}
+
+.table-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 8px;
+  margin-bottom: 8px;
+  font-size: 0.88rem;
+}
+
+.table-tools .button {
+  margin-right: -6px;
+}
+
+.table-tools .button:disabled {
+  cursor: not-allowed;
 }
 
 .table-scroll {
@@ -1678,6 +1773,16 @@ fieldset.segmented {
   transform: translateY(1px);
 }
 
+.table-banner-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.table-banner .modes-static {
+  flex: none;
+  align-self: center;
+}
+
 .cell-sub {
   display: block;
   color: var(--text-muted);
@@ -1700,7 +1805,7 @@ fieldset.segmented {
     grid-template-columns: minmax(0, 1fr);
   }
   .map-card,
-  .panel {
+  .side {
     position: static;
     max-height: none;
   }
@@ -1754,9 +1859,12 @@ fieldset.segmented {
   .layout {
     grid-template-columns: 1fr;
   }
-  .panel {
+  .side {
     max-height: none;
     position: static;
+  }
+  .panel,
+  .map-key {
     box-shadow: none;
   }
 }
