@@ -105,6 +105,20 @@ export interface Messages {
     rest: (country: string) => string;
   };
   tabs: { banners: string; simulator: string; diagnostics: string; table: string };
+  /** Each banner's display mode (settings.displayMode) and consent mode (settings.consentMode). */
+  modes: {
+    shown: string;
+    hidden: string;
+    optIn: string;
+    optOut: string;
+    shownText: string;
+    hiddenText: (optOut: boolean) => string;
+    optInText: string;
+    optOutText: string;
+    notSet: string;
+    /** The setting as it reads in the project file, with the SDK's default when it's absent. */
+    field: (name: string, value: string | null, fallback: string) => string;
+  };
   legend: {
     intro: string;
     lists: (n: number) => string;

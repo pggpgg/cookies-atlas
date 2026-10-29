@@ -1311,6 +1311,74 @@ fieldset.segmented {
   gap: 3px;
 }
 
+/* Display mode (eye) and consent mode (check / X) of a banner, each with a tooltip. */
+.modes {
+  flex: none;
+  display: inline-flex;
+  gap: 2px;
+}
+
+.legend-item .modes {
+  align-self: flex-start;
+  margin-top: 6px;
+}
+
+.mode {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 6px;
+  cursor: help;
+}
+
+.mode:hover {
+  background: var(--surface-2);
+}
+
+.mode-shown {
+  color: var(--link);
+}
+
+.mode-hidden {
+  color: var(--text-muted);
+}
+
+.mode-opt-in {
+  color: var(--status-good-text);
+}
+
+.mode-opt-out {
+  color: var(--status-critical);
+}
+
+.mode-tooltip {
+  position: fixed;
+  z-index: 50;
+  display: grid;
+  gap: 4px;
+  width: max-content;
+  max-width: 300px;
+  padding: 10px 12px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  font-size: 0.84rem;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+}
+
+.mode-tooltip strong {
+  font-family: var(--font-heading);
+}
+
+.mode-tooltip code {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
 .legend-admin {
   color: var(--text-muted);
   padding: 6px;

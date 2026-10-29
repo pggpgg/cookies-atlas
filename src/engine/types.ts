@@ -26,7 +26,14 @@ export interface AxeptioConfig {
   published?: boolean | null;
   partOfABTest?: boolean | null;
   steps?: unknown[] | null;
-  settings?: { pages?: PageRule[] | null; [key: string]: unknown } | null;
+  settings?: {
+    pages?: PageRule[] | null;
+    /** "show" or "hide": whether the banner opens by itself. */
+    displayMode?: string | null;
+    /** "opt_in" or "opt_out": whether vendors wait for consent or are accepted on arrival. */
+    consentMode?: string | null;
+    [key: string]: unknown;
+  } | null;
   [key: string]: unknown;
 }
 

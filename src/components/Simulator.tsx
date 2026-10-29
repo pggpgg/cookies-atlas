@@ -8,6 +8,7 @@ import { selectConfig, type TraceEntry } from '../engine/select';
 import type { AxeptioProject } from '../engine/types';
 import { useI18n } from '../i18n';
 import { Icon } from './Icon';
+import { BannerModes } from './Modes';
 
 export interface SimulatorState {
   region: string | undefined;
@@ -227,6 +228,7 @@ export function Simulator({ project, mode, colors, countries, state, internal, o
                   .join(' · ')}
               </span>
             </div>
+            {config && <BannerModes config={config} />}
             {internal && config && project.projectId && (
               <a class="icon-link" href={ADMIN_CONFIG_URL(project.projectId, config.identifier)} target="_blank" rel="noopener noreferrer" title={t.legend.admin}>
                 <Icon name="external" size={16} />

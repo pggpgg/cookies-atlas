@@ -324,6 +324,23 @@ export const fr: Messages = {
     rest: (country) => `${country} (autres régions)`,
   },
   tabs: { banners: 'Bandeaux', simulator: 'Simulateur', diagnostics: 'Diagnostic', table: 'Tableau' },
+  modes: {
+    shown: 'Affiché',
+    hidden: 'Masqué',
+    optIn: 'Opt-in',
+    optOut: 'Opt-out',
+    shownText: 'Le bandeau s’ouvre de lui-même à l’arrivée du visiteur, et reste affiché jusqu’à ce qu’il fasse un choix.',
+    hiddenText: (optOut) =>
+      `Le bandeau ne s’ouvre jamais de lui-même : le visiteur le voit seulement s’il ouvre lui-même ses réglages de cookies, par exemple depuis un lien sur le site. ${
+        optOut
+          ? 'Comme il est en opt-out, tout est accepté dès son arrivée.'
+          : 'Comme il est en opt-in, aucun choix n’est jamais enregistré, mais Axeptio envoie quand même le Google Consent Mode en « granted ».'
+      }`,
+    optInText: 'Rien n’est accepté tant que le visiteur ne dit pas oui : les vendors attendent son consentement. C’est la norme sous le RGPD, la Loi 25 et la LGPD.',
+    optOutText: 'Tout est accepté dès l’arrivée du visiteur et enregistré comme son choix ; il peut refuser ensuite. Ça convient à des lois comme la CCPA, pas au RGPD ni à la Loi 25.',
+    notSet: 'Non défini : la valeur par défaut d’Axeptio s’applique.',
+    field: (name, value, fallback) => (value === null ? `settings.${name} : non défini (défaut "${fallback}")` : `settings.${name} : "${value}"`),
+  },
   legend: {
     intro: 'Chaque couleur est un bandeau. Survolez pour voir où il s’affiche, cliquez pour l’isoler.',
     lists: (n) => `liste ${n} pays`,

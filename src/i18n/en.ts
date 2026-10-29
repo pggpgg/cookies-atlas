@@ -343,6 +343,23 @@ export const en: Messages = {
     rest: (country) => `${country} (other regions)`,
   },
   tabs: { banners: 'Banners', simulator: 'Simulator', diagnostics: 'Diagnostics', table: 'Table' },
+  modes: {
+    shown: 'Shown',
+    hidden: 'Hidden',
+    optIn: 'Opt-in',
+    optOut: 'Opt-out',
+    shownText: 'The banner opens on its own when a visitor arrives, and stays until they make a choice.',
+    hiddenText: (optOut) =>
+      `The banner never opens on its own: visitors only see it if they open their cookie settings themselves, for example from a link on the site. ${
+        optOut
+          ? 'Since it is opt-out, everything is accepted as soon as they arrive.'
+          : 'Since it is opt-in, no choice is ever saved for them, but Axeptio still sends Google Consent Mode as granted.'
+      }`,
+    optInText: 'Nothing is accepted until the visitor says yes: vendors wait for their consent. This is the norm under GDPR, Law 25 and LGPD.',
+    optOutText: 'Everything is accepted as soon as the visitor arrives, and saved as their choice; they can refuse afterwards. This fits laws like CCPA, not GDPR or Law 25.',
+    notSet: "Not set, so Axeptio's default applies.",
+    field: (name, value, fallback) => (value === null ? `settings.${name}: not set (default "${fallback}")` : `settings.${name}: "${value}"`),
+  },
   legend: {
     intro: 'Each color is one banner. Hover to highlight where it shows, click to isolate it.',
     lists: (n) => `lists ${n} ${plural(n, 'country', 'countries')}`,

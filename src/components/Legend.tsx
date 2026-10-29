@@ -6,6 +6,7 @@ import { langKey } from '../engine/select';
 import type { AxeptioProject } from '../engine/types';
 import { useI18n } from '../i18n';
 import { Icon } from './Icon';
+import { BannerModes } from './Modes';
 
 interface LegendProps {
   project: AxeptioProject;
@@ -93,6 +94,7 @@ export function Legend({ project, evaluation, colors, isolated, internal, deadId
                   {(config.partOfABTest || abIds.has(id)) && <span class="badge">{t.legend.abTest}</span>}
                 </span>
               </button>
+              <BannerModes config={config} />
               {internal && project.projectId && (
                 <a class="legend-admin" href={ADMIN_CONFIG_URL(project.projectId, id)} target="_blank" rel="noopener noreferrer" title={t.legend.admin}>
                   <Icon name="external" size={15} />

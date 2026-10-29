@@ -17,6 +17,7 @@ is a world map, a visitor simulator that explains each step, and diagnostics wri
   match, the fallback or the default) are drawn lighter. Canada and the US are drawn by province and
   state, and any other country gets split when a banner targets one of its regions.
 - **Visitor language.** Show every outcome, or pick one language to see the exact winner.
+- **Display and consent mode.** Each banner shows whether it opens by itself or stays hidden (`displayMode`), and whether it is opt-in or opt-out (`consentMode`), with a tooltip that explains what each means for visitors.
 - **Simulator.** Pick a place, a browser language, a page language (`html lang`), the tie-break logic
   (browser vs `useDocumentLang`), and optionally `cookiesVersion` or a page path. You get the banner
   and the SDK's steps in order, in plain words.
