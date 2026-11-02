@@ -83,18 +83,24 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
       const many = d.capturing.length > 1;
       const capturing = c.configs(d.capturing);
       const country = c.country(d.country);
+      const wins = many ? 'ce sont eux qui gagnent' : 'c’est lui qui gagne';
+      if (d.undetected) {
+        return {
+          title: `${country} : les visiteurs dont la région n’est pas détectée reçoivent ${capturing}`,
+          mechanism: `Vos bandeaux ciblent toutes les régions de ce pays : ça concerne seulement les visiteurs localisés dans ce pays sans région, ce qui devrait être rare. Aucun bandeau de région ne les matche, donc le SDK passe aux bandeaux qui listent ce pays, et ${wins}.`,
+          fix: 'Rien à changer si c’est le bandeau qu’ils doivent recevoir.',
+        };
+      }
       const nIntended = (d.intended as string[]).length;
       // Au-delà de trois régions, la liste se résume à un nombre.
       const intended =
         nIntended > 3 ? `${nIntended} régions (${country})` : `${nIntended > 1 ? 'les régions' : 'la région'} ${c.places(d.intended)}`;
-      const banners = many ? 'bandeaux' : 'bandeau';
-      const keeps =
-        (nIntended > 3
-          ? `Ces ${nIntended} régions gardent ${many ? 'leurs' : 'leur'} ${banners}`
-          : nIntended > 1
-            ? `${cap(intended)} gardent ${many ? 'leurs' : 'leur'} ${banners}`
-            : `${cap(intended)} garde ${many ? 'ses' : 'son'} ${banners}`) + ', puisque le match par région passe en premier';
-      const competitor = d.competitor ? c.config(d.competitor) : null;
+      const uncovered = d.uncovered as string[] | null;
+      const where = !uncovered
+        ? `dans le reste du pays (${country})`
+        : uncovered.length > 3
+          ? `dans ${uncovered.length} autres régions (${country})`
+          : `ailleurs : ${c.places(uncovered)}`;
       const regs = (d.regulations ?? []) as string[];
       const add =
         regs.length > 1
@@ -102,27 +108,22 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
           : regs.length === 1
             ? `Ajoutez un bandeau qui liste seulement ce pays (${country}), avec la réglementation ${c.regulation(regs[0])}`
             : `Ajoutez un bandeau qui liste seulement ce pays (${country})`;
-      const created = regs.length > 1 ? 'les nouveaux bandeaux' : 'le nouveau bandeau';
-      const title = `${capturing} ${many ? 's’affichent' : 's’affiche'} aussi dans le reste du pays (${country})`;
+      const takes = `${regs.length > 1 ? 'Ils prennent' : 'Il prend'} le relais dans le reste du pays, et les régions que vous ciblez gardent leurs bandeaux, puisque le match par région passe en premier.`;
+      const competitor = d.competitor ? c.config(d.competitor) : null;
+      const title = `${capturing} ${many ? 's’affichent' : 's’affiche'} aussi ${where}`;
       if (d.step === 'multi-country') {
         return {
           title,
-          mechanism: `${many ? 'Ils ciblent' : 'Il cible'} ${intended}, mais ${many ? 'listent' : 'liste'} aussi ce pays parmi d’autres. Ailleurs au pays, aucun bandeau ne cible la région du visiteur et aucun ne liste ce pays seul : le SDK choisit donc parmi les bandeaux qui le listent avec d’autres pays, et ${many ? 'ce sont eux qui gagnent' : 'c’est lui qui gagne'}.`,
-          fix: `${add}. Les bandeaux à pays unique passent avant ceux qui listent plusieurs pays : le reste du pays reçoit ${created}. ${keeps}.`,
+          mechanism: `${many ? 'Ils ciblent' : 'Il cible'} ${intended}, mais ${many ? 'listent' : 'liste'} aussi ce pays parmi d’autres. Ailleurs au pays, aucun bandeau ne cible la région du visiteur et aucun ne liste ce pays seul : le SDK choisit donc parmi les bandeaux qui le listent avec d’autres pays, et ${wins}.`,
+          fix: `${add}. Les bandeaux à pays unique passent avant ceux qui listent plusieurs pays : ${regs.length > 1 ? 'ils prennent' : 'il prend'} le relais dans le reste du pays, et les régions que vous ciblez gardent leurs bandeaux.`,
         };
       }
-      const split = competitor ? ` (par exemple, séparez ${competitor} en un bandeau par pays)` : '';
-      const above = `, ${many ? 'dans leurs langues' : 'dans sa langue'}, et placez-${regs.length > 1 ? 'les' : 'le'} au-dessus de ${capturing} dans votre liste`;
       return {
         title,
         mechanism:
-          `${many ? 'Ils ciblent' : 'Il cible'} ${intended}, mais ne ${many ? 'listent' : 'liste'} que ce pays. Ailleurs au pays, aucun bandeau ne cible la région du visiteur : le SDK passe donc aux bandeaux qui listent seulement ce pays, et ${many ? 'ce sont eux qui gagnent' : 'c’est lui qui gagne'}.` +
+          `${many ? 'Ils ciblent' : 'Il cible'} ${intended}, mais ${many ? 'listent' : 'liste'} aussi ce pays. Ailleurs au pays, les visiteurs ne matchent aucun bandeau de région : le SDK passe donc aux bandeaux qui listent seulement ce pays, et ${wins}.` +
           (competitor ? ` ${competitor} liste aussi ce pays, mais avec d’autres : il passe seulement après.` : ''),
-        fix: !d.tie
-          ? `${add}${split}. Entre bandeaux qui listent seulement ce pays, le SDK préfère celui dont la réglementation correspond à la région du visiteur : le reste du pays reçoit ${created}. ${keeps}.`
-          : regs.length > 0
-            ? `${add}${split}${above}. Là où ${many ? 'ils ont' : 'il a'} aussi la réglementation du visiteur, le SDK ne peut pas choisir par réglementation : il départage selon la langue du visiteur, puis selon l’ordre de la liste. ${keeps}.`
-            : `${add}${above}. Sans réglementation à préférer dans ce pays, le SDK départage selon la langue du visiteur, puis selon l’ordre de la liste. ${keeps}.`,
+        fix: `${add}, et placez-${regs.length > 1 ? 'les' : 'le'} au-dessus de ${capturing} dans votre liste. ${takes}`,
       };
     }
     case 'regulation-mismatch': {

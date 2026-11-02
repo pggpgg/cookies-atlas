@@ -414,3 +414,41 @@ describe('banner behavior that depends on the visitor language', () => {
     expect(previewed[0].regions).toContain('FR');
   });
 });
+
+describe('region banners that also list their country', () => {
+  const cfg = (identifier: string, fields: Partial<AxeptioConfig> = {}): AxeptioConfig => ({
+    identifier,
+    name: identifier,
+    steps: [{ name: 'welcome', layout: 'welcome' }],
+    ...fields,
+  });
+  const project = (cookies: AxeptioConfig[]): AxeptioProject => ({
+    client: { cookiesSettings: { geolocation: true, geolocationFallbackConfigId: 'world' } },
+    cookies,
+  });
+  const rest = ['CA-AB', 'CA-BC', 'CA-MB', 'CA-NB', 'CA-NL', 'CA-NS', 'CA-NT', 'CA-NU', 'CA-ON', 'CA-PE', 'CA-SK', 'CA-YT'];
+
+  it('names the regions no banner targets', () => {
+    const [finding] = ofKind(
+      run(project([cfg('qc', { country: ['CA'], subdivision: ['CA-QC'], regulation: 'loi25', language: 'fr' }), cfg('world', { language: 'en' })]), 'actual'),
+      'over-capture',
+    );
+    expect(finding.severity).toBe('warning');
+    expect(finding.data).toMatchObject({ uncovered: rest, undetected: false });
+  });
+
+  it('is only a note when every region is targeted: just visitors located without a region get them', () => {
+    const findings = run(
+      project([
+        cfg('qc', { country: ['CA'], subdivision: ['CA-QC'], regulation: 'loi25', language: 'fr' }),
+        cfg('roc', { country: ['CA'], subdivision: rest, regulation: 'ccpa', language: 'en' }),
+        cfg('world', { language: 'en' }),
+      ]),
+      'actual',
+    );
+    const [finding] = ofKind(findings, 'over-capture');
+    expect(finding.severity).toBe('info');
+    expect(finding.data).toMatchObject({ uncovered: [], undetected: true });
+    expect(finding.regions).toEqual(['CA']);
+  });
+});

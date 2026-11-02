@@ -93,14 +93,17 @@ describe('over-capture copy', () => {
   const text = (ui: UiLanguage) => findings.map((f) => MESSAGES[ui].diagnostics.finding(f, buildCopyContext(ui, regions, names)));
   it('agrees in number in French', () => {
     const [two, many] = text('fr');
-    expect(two.fix).toContain('Les régions Ontario (Canada) et Québec (Canada) gardent leur bandeau');
+    expect(two.mechanism).toContain('Il cible les régions Ontario (Canada) et Québec (Canada), mais liste aussi ce pays.');
+    expect(two.title).toBe('« two » s’affiche aussi dans 11 autres régions (Canada)');
     expect(many.mechanism).toContain('Il cible 4 régions (États-Unis)');
-    expect(many.fix).toContain('Ces 4 régions gardent leur bandeau');
   });
-  it('counts long region lists in English', () => {
-    const [, many] = text('en');
+  it('names where the banner really shows, in English', () => {
+    const [two, many] = text('en');
+    expect(two.title).toBe('“two” also shows in 11 other regions of Canada');
     expect(many.mechanism).toContain('It targets 4 regions of the United States');
-    expect(many.fix).toContain('these 4 regions keep their banner');
+    expect(two.fix).toBe(
+      'Add a banner listing only Canada, with the CCPA regulation, and put it above “two” in your list. It takes over the rest of Canada, and the regions you target keep their banners, since region matches come first.',
+    );
   });
 });
 

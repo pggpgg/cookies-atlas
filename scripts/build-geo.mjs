@@ -200,6 +200,7 @@ async function buildAdmin1() {
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
   const index = {};
+  const firstLevel = {};
   let total = 0;
   for (const [cc, features] of [...byCountry.entries()].sort()) {
     if (features.length < 2) continue; // nothing to split
@@ -231,6 +232,7 @@ async function buildAdmin1() {
     fs.writeFileSync(file, JSON.stringify(topo));
     total += fs.statSync(file).size;
     index[cc] = topo.regions.length;
+    firstLevel[cc] = topo.regions.map((r) => r.code).sort();
   }
   fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify(index));
   console.log(`admin1/: ${Object.keys(index).length} countries, ${(total / 1024 / 1024).toFixed(1)} MB total`);
@@ -255,9 +257,37 @@ async function buildAdmin1() {
       '// (French departments → regions, UK counties → nations, Italian provinces → regions...).\n' +
       'export const SECOND_LEVEL_PARENTS: Readonly<Record<string, Readonly<Record<string, string>>>> = {\n' +
       lines.join('\n') +
-      '\n};\n',
+      '\n};\n\n' +
+      firstLevelSource(firstLevel),
   );
   for (const cc of ['CA', 'US']) console.log(`  ${cc}.json: ${(fs.statSync(path.join(dir, `${cc}.json`)).size / 1024).toFixed(0)} KB`);
+}
+
+/** Every first-level region of each country drawn by region, to tell when banners cover all of a country. */
+export function firstLevelSource(firstLevel) {
+  return (
+    '// First-level region codes of each country the map can draw by region.\n' +
+    'export const FIRST_LEVEL_REGIONS: Readonly<Record<string, readonly string[]>> = {\n' +
+    Object.keys(firstLevel)
+      .sort()
+      .map((cc) => `  ${cc}: ${JSON.stringify(firstLevel[cc])},`)
+      .join('\n') +
+    '\n};\n'
+  );
+}
+
+if (process.argv.includes('--first-level-only')) {
+  // Rebuild the region list from the committed map files, without downloading anything.
+  const dir = path.join(OUT, 'admin1');
+  const firstLevel = {};
+  for (const name of fs.readdirSync(dir).filter((n) => /^[A-Z]{2}\.json$/.test(n))) {
+    const file = JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'));
+    firstLevel[name.slice(0, 2)] = file.regions.map((r) => r.code).sort();
+  }
+  const target = 'src/engine/region-parents.ts';
+  const current = fs.readFileSync(target, 'utf8').split('\n\n// First-level region codes')[0].replace(/\n*$/, '\n');
+  fs.writeFileSync(target, current + '\n' + firstLevelSource(firstLevel));
+  process.exit(0);
 }
 
 await buildCountries();

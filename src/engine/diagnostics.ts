@@ -15,6 +15,7 @@ import {
 } from './evaluate';
 import { COUNTRY_CODE_FIXES, ISO_3166_1 } from './iso-3166';
 import { modesOf } from './modes';
+import { FIRST_LEVEL_REGIONS } from './region-parents';
 import { OPT_IN_REGULATIONS, OPT_OUT_REGULATIONS, REGULATIONS } from './regions';
 import { langKey, pageMatches, sameRegulation, type Selection, type TraceEntry } from './select';
 import type { AxeptioConfig, AxeptioProject, PageRule } from './types';
@@ -341,8 +342,15 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
       overCaptured.add(`${config.identifier}|${key}`);
     }
   }
+  // Regions some banner targets: visitors there never reach the country match.
+  const targetedRegions = new Set(configs.flatMap((c) => intentOf(c).subdivisions));
   for (const group of captureGroups.values()) {
     const single = group.step === 'single-country';
+    // The country's first-level regions no banner targets: where the capturing banners really show.
+    // When there are none, only visitors located without a region (rare) get them: a note, not a warning.
+    const firstLevel = FIRST_LEVEL_REGIONS[group.country] ?? [];
+    const uncovered = firstLevel.length > 0 ? firstLevel.map((code) => `${group.country}-${code}`).filter((key) => !targetedRegions.has(key)) : null;
+    const undetected = uncovered !== null && uncovered.length === 0;
     // At the single-country step, a config listing the country among others, with the regulation
     // of the rest of the country, loses only because the capturing ones are checked first.
     const competitor = single
@@ -366,7 +374,7 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
     findings.push({
       id: `over-capture:${group.country}`,
       kind: 'over-capture',
-      severity: 'warning',
+      severity: undetected ? 'info' : 'warning',
       configs: competitor ? [...group.capturing, competitor.identifier] : [...group.capturing],
       regions: [...group.regions].sort(),
       data: {
@@ -379,6 +387,10 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
         capturing: group.capturing,
         competitor: competitor?.identifier ?? null,
         tie,
+        /** Region keys no banner targets (null when the map has no region list for the country). */
+        uncovered,
+        /** Every region is targeted: only visitors located without a region get the capturing banners. */
+        undetected,
       },
     });
   }

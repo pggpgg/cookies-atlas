@@ -116,13 +116,18 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
       const they = (one: string, many: string) => plural(n, one, many);
       const capturing = c.configs(d.capturing);
       const country = c.countryIn(d.country);
+      const wins = they('this one wins', 'these win');
+      if (d.undetected) {
+        return {
+          title: `Visitors in ${country} whose region isn't detected get ${capturing}`,
+          mechanism: `Your banners target every region of ${country}, so this only concerns visitors located in ${country} without a region, which should be rare. No region banner matches them, so the SDK falls back to banners listing ${country}, and ${wins}.`,
+          fix: "Nothing to change if that's the banner they should get.",
+        };
+      }
       const nIntended = (d.intended as string[]).length;
-      // Past three regions, the list collapses to a count.
       const intended = nIntended > 3 ? `${nIntended} regions of ${country}` : c.placesIn(d.intended);
-      const keeps =
-        (nIntended > 3 ? `these ${nIntended} regions keep their` : nIntended === 1 ? `${intended} keeps its` : `${intended} keep their`) +
-        ` ${they('banner', 'banners')}, since region matches come first`;
-      const competitor = d.competitor ? c.config(d.competitor) : null;
+      const uncovered = d.uncovered as string[] | null;
+      const rest = !uncovered ? `the rest of ${country}` : uncovered.length > 3 ? `${uncovered.length} other regions of ${country}` : c.placesIn(uncovered);
       const regs = (d.regulations ?? []) as string[];
       const add =
         regs.length > 1
@@ -130,27 +135,23 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
           : regs.length === 1
             ? `Add a banner listing only ${country}, with the ${c.regulation(regs[0])} regulation`
             : `Add a banner listing only ${country}`;
-      const created = plural(Math.max(regs.length, 1), 'the new one', 'the new ones');
-      const title = `${capturing} also ${they('shows', 'show')} in the rest of ${country}`;
+      const it = regs.length > 1 ? 'them' : 'it';
+      const takes = `${regs.length > 1 ? 'They take' : 'It takes'} over the rest of ${country}, and the regions you target keep their banners, since region matches come first.`;
+      const competitor = d.competitor ? c.config(d.competitor) : null;
+      const title = `${capturing} also ${they('shows', 'show')} in ${rest}`;
       if (d.step === 'multi-country') {
         return {
           title,
-          mechanism: `${they('It targets', 'They target')} ${intended}, but ${they('it also lists', 'they also list')} ${country} among other countries. Elsewhere in ${country}, no banner targets the visitor's region and none lists ${country} alone, so the SDK picks among banners listing it with others, and ${they('this one wins', 'these win')}.`,
-          fix: `${add}. Banners listing a single country come before banners listing several, so the rest of ${country} gets ${created}; ${keeps}.`,
+          mechanism: `${they('It targets', 'They target')} ${intended}, but ${they('it also lists', 'they also list')} ${country} among other countries. Visitors elsewhere in ${country} match no region banner, and no banner lists ${country} alone, so the SDK picks among banners listing it with others, and ${wins}.`,
+          fix: `${add}. Banners listing a single country come before banners listing several, so ${regs.length > 1 ? 'they take' : 'it takes'} over the rest of ${country}, and the regions you target keep their banners.`,
         };
       }
-      const split = competitor ? ` (for example, split ${competitor} into one banner per country)` : '';
-      const above = `, in ${they('its language', 'their languages')}, and list ${plural(Math.max(regs.length, 1), 'it', 'them')} above ${capturing}`;
       return {
         title,
         mechanism:
-          `${they('It targets', 'They target')} ${intended}, but ${they('it lists', 'they list')} ${country} as ${they('its', 'their')} only country. Elsewhere in ${country}, no banner targets the visitor's region, so the SDK moves on to banners listing only ${country}, and ${they('this one wins', 'these win')}.` +
+          `${they('It targets', 'They target')} ${intended}, but ${they('it also lists', 'they also list')} ${country} as ${they('its', 'their')} country. Visitors elsewhere in ${country} match no region banner, so the SDK falls back to banners listing only ${country}, and ${wins}.` +
           (competitor ? ` ${competitor} lists ${country} too, but among other countries, so it only comes after.` : ''),
-        fix: !d.tie
-          ? `${add}${split}. Among banners listing only ${country}, the SDK prefers the one whose regulation matches the visitor's region, so the rest of ${country} gets ${created}; ${keeps}.`
-          : regs.length > 0
-            ? `${add}${split}${above}. Where ${they('it has', 'they have')} the visitor's regulation too, the SDK can't choose by regulation and goes by visitor language, then list order; ${keeps}.`
-            : `${add}${above}. With no regulation to prefer in ${country}, the SDK goes by visitor language, then list order; ${keeps}.`,
+        fix: `${add}, and put ${it} above ${capturing} in your list. ${takes}`,
       };
     }
     case 'regulation-mismatch': {
