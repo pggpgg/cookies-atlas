@@ -43,6 +43,34 @@ export interface VisitorContext {
 export interface SelectOptions {
   /** Run the geolocation path even when the project has location-based display OFF. */
   forceGeolocation?: boolean;
+  /**
+   * Replay the decision tree proposed in Linear ENG-14524 instead of today's SDK (see
+   * `geoSelectExperimental`). Only the location-based path changes.
+   */
+  experimental?: boolean;
+}
+
+/** How the ENG-14524 tree settled a candidate list. */
+export type ExperimentalOutcome =
+  /** Only one candidate: it wins whatever its language. */
+  | 'single'
+  /** Exactly one candidate uses the visitor's language. */
+  | 'language'
+  /** Several use the visitor's language; the visitor's regulation narrowed them to one. */
+  | 'regulation'
+  /** Several remain after language and regulation: list order decides. */
+  | 'order'
+  /** None uses the visitor's language and the fallback banner is a candidate: it wins. */
+  | 'fallback'
+  /** None uses the visitor's language and the fallback isn't a candidate: the first one wins. */
+  | 'first';
+
+export interface ExperimentalDecision {
+  /** Candidates using the visitor's language, in array order. */
+  languageMatches: string[];
+  /** Language matches kept by the regulation preference (equals languageMatches when it changes nothing). */
+  regulationKept: string[];
+  outcome: ExperimentalOutcome;
 }
 
 export interface TieBreak {
@@ -58,7 +86,7 @@ export type TraceEntry =
   | { kind: 'language'; source: 'browser' | 'document'; raw: string | null; key: string | undefined }
   | { kind: 'regulation'; country: string | undefined; subdivision: string | undefined; regulation: string | undefined }
   | { kind: 'visibility'; enabled: boolean; allowed: string[]; passed: boolean }
-  | { kind: 'geolocation'; enabled: boolean; forced: boolean }
+  | { kind: 'geolocation'; enabled: boolean; forced: boolean; experimental: boolean }
   | {
       kind: 'candidates';
       step: CandidateStep;
@@ -70,6 +98,8 @@ export type TraceEntry =
       regulationApplied: boolean;
       winner?: string;
       tieBreak?: TieBreak;
+      /** Set when the ENG-14524 tree ran: how the candidates were settled. */
+      experimental?: ExperimentalDecision;
     }
   | { kind: 'stop'; reason: 'no-regulation' }
   | { kind: 'fallback'; configId: string | null; found: boolean }
@@ -362,6 +392,124 @@ function geoSelect(
   return { config: winner, step: 'regulation' };
 }
 
+// ---------------------------------------------------------------------------
+// Experimental: the decision tree proposed in Linear ENG-14524 (2026-11-02)
+// ---------------------------------------------------------------------------
+
+/** True when a config targets at least one region (any non-empty subdivision value). */
+export function targetsSubdivision(config: AxeptioConfig): boolean {
+  return asList(config.subdivision).some((v) => typeof v === 'string' && v.trim() !== '');
+}
+
+/**
+ * ENG-14524 candidate settlement: language first; several in the language → regulation, then list
+ * order; none in the language → the fallback if it is a candidate, else the first candidate.
+ */
+function pickExperimental(
+  step: CandidateStep,
+  key: string | undefined,
+  matched: AxeptioConfig[],
+  regulation: string | undefined,
+  language: string | undefined,
+  fallbackId: string | null,
+  trace: TraceEntry[],
+): { config: AxeptioConfig; isFallback: boolean } | null {
+  const entry: Extract<TraceEntry, { kind: 'candidates' }> = {
+    kind: 'candidates',
+    step,
+    key,
+    matched: ids(matched),
+    preferred: ids(matched),
+    regulationApplied: false,
+  };
+  trace.push(entry);
+  if (matched.length === 0) return null;
+
+  const inLanguage = language ? matched.filter((c) => langKey(c.language) === language) : [];
+  const kept = inLanguage.length > 1 ? preferRegulation(inLanguage, regulation) : inLanguage;
+  const decision: ExperimentalDecision = { languageMatches: ids(inLanguage), regulationKept: ids(kept), outcome: 'single' };
+  entry.experimental = decision;
+
+  let winner: AxeptioConfig;
+  let isFallback = false;
+  if (matched.length === 1) {
+    winner = matched[0];
+    decision.outcome = 'single';
+  } else if (kept.length >= 1) {
+    winner = kept[0];
+    decision.outcome = inLanguage.length === 1 ? 'language' : kept.length === 1 ? 'regulation' : 'order';
+    // Same-language candidates the regulation preference dropped lost on regulation, not order.
+    const dropped = new Set(ids(inLanguage).filter((id) => !decision.regulationKept.includes(id)));
+    if (dropped.size) {
+      entry.preferred = entry.matched.filter((id) => !dropped.has(id));
+      entry.regulationApplied = true;
+    }
+  } else {
+    const fallback = fallbackId ? matched.find((c) => c.identifier === fallbackId) : undefined;
+    winner = fallback ?? matched[0];
+    isFallback = Boolean(fallback);
+    decision.outcome = fallback ? 'fallback' : 'first';
+  }
+  entry.winner = winner.identifier;
+  if (matched.length > 1) {
+    // Kept in the SDK's shape so diagnostics (order ties, loss reasons) keep working.
+    entry.tieBreak = { language, languageMatches: decision.regulationKept, byOrder: decision.outcome !== 'language' && decision.outcome !== 'regulation' };
+  }
+  return { config: winner, isFallback };
+}
+
+/**
+ * The geolocation function as proposed in ENG-14524 (comment by Luis Flores, 2026-11-02, from
+ * Pierre's proposal):
+ * 1. region match (`CA-QC`);
+ * 2. exact country match, banners targeting a region excluded (a `CA-QC` banner never matches `CA`);
+ * 3. country group match, same exclusion;
+ * 4. regulation match;
+ * then the fallback. At each step a single match wins whatever its language; several go to
+ * `pickExperimental`. Open questions in the ticket are left as drawn: the cross-regulation fallback
+ * is not forced, and the regulation step considers every banner with that regulation.
+ */
+function geoSelectExperimental(
+  configs: AxeptioConfig[],
+  countryCode: string | null | undefined,
+  subdivisionCode: string | null | undefined,
+  browserLanguage: string | null | undefined,
+  fallbackId: string | null,
+  trace: TraceEntry[],
+): { config: AxeptioConfig; step: CandidateStep; isFallback: boolean } | null {
+  const R = regulationFor(countryCode?.toUpperCase(), subdivisionCode?.toUpperCase());
+  const key = langKey(browserLanguage);
+  const run = (step: CandidateStep, stepKey: string | undefined, matched: AxeptioConfig[]) => {
+    const hit = pickExperimental(step, stepKey, matched, R, key, fallbackId, trace);
+    return hit ? { ...hit, step } : null;
+  };
+
+  // 1. Region match
+  const subKey =
+    typeof countryCode === 'string' && typeof subdivisionCode === 'string'
+      ? `${countryCode.trim().toUpperCase()}-${subdivisionCode.trim().toUpperCase()}`
+      : undefined;
+  const a = run('subdivision', subKey, configs.filter((c) => matchesSubdivision(c.subdivision, countryCode, subdivisionCode)));
+  if (a) return a;
+
+  // 2. Exact country, 3. country group: banners targeting a region never match at country level.
+  const countryKey = typeof countryCode === 'string' ? countryCode.trim().toUpperCase() : undefined;
+  const byCountry = configs.filter((c) => !targetsSubdivision(c) && matchesCountry(c.country, countryCode));
+  const b = run('single-country', countryKey, byCountry.filter((c) => isSingleCountry(c.country)));
+  if (b) return b;
+  const c = run('multi-country', countryKey, byCountry.filter((cfg) => !isSingleCountry(cfg.country)));
+  if (c) return c;
+
+  // No regulation for this region: straight to the fallback.
+  if (R === undefined) {
+    trace.push({ kind: 'stop', reason: 'no-regulation' });
+    return null;
+  }
+
+  // 4. Regulation match
+  return run('regulation', R, configs.filter((cfg) => sameRegulation(cfg.regulation, R)));
+}
+
 /** The non-geolocation strategies: cookiesVersion, then page rules, then the first config with steps. */
 function nonGeoSelect(
   configs: AxeptioConfig[] | null | undefined,
@@ -472,14 +620,30 @@ export function selectConfig(project: AxeptioProject, visitor: VisitorContext, o
   let isFallback = false;
 
   const geolocation = Boolean(settings?.geolocation) || Boolean(options.forceGeolocation);
-  trace.push({ kind: 'geolocation', enabled: Boolean(settings?.geolocation), forced: !settings?.geolocation && Boolean(options.forceGeolocation) });
+  const experimental = Boolean(options.experimental);
+  trace.push({
+    kind: 'geolocation',
+    enabled: Boolean(settings?.geolocation),
+    forced: !settings?.geolocation && Boolean(options.forceGeolocation),
+    experimental: geolocation && experimental,
+  });
 
   if (geolocation) {
-    const geo = geoSelect(configs ?? [], visitor.countryCode, visitor.subdivisionCode, languageRaw, trace);
+    const geo = experimental
+      ? geoSelectExperimental(
+          configs ?? [],
+          visitor.countryCode,
+          visitor.subdivisionCode,
+          languageRaw,
+          settings?.geolocationFallbackConfigId ?? null,
+          trace,
+        )
+      : geoSelect(configs ?? [], visitor.countryCode, visitor.subdivisionCode, languageRaw, trace);
     if (geo) {
       config = geo.config;
       step = geo.step;
       explicitlyRouted = true;
+      isFallback = (geo as { isFallback?: boolean }).isFallback === true;
     } else {
       const fallbackId = settings?.geolocationFallbackConfigId ?? null;
       const fallback = configs?.find((c) => c.identifier === fallbackId) ?? null;

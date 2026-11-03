@@ -1798,6 +1798,133 @@ fieldset.segmented {
   overflow-wrap: anywhere;
 }
 
+/* ---------- Experimental build (ENG-14524) ---------- */
+
+.experimental-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-1);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.experimental-toggle input {
+  margin: 0;
+  accent-color: var(--focus);
+}
+
+.experimental-toggle.on {
+  border-color: var(--focus);
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--focus) 12%, var(--surface-1));
+}
+
+.mode-experimental {
+  background: color-mix(in srgb, var(--focus) 20%, var(--surface-1));
+  color: var(--text-primary);
+}
+
+.experimental-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--focus);
+  border-radius: 14px;
+}
+
+.experimental-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.05rem;
+  margin-bottom: 4px;
+}
+
+.experimental-head h2 .icon {
+  color: var(--focus);
+}
+
+.experimental-head p {
+  margin: 2px 0;
+  max-width: 900px;
+}
+
+.change-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
+  gap: 2px 0;
+}
+
+.change-list li {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  gap: 4px 14px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.change-list li.active {
+  background: var(--surface-2);
+}
+
+.change-pair {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.change-arrow {
+  color: var(--text-muted);
+}
+
+.change-places {
+  min-width: 0;
+}
+
+.change-languages {
+  font-size: 0.82rem;
+}
+
+.change-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+@media (max-width: 760px) {
+  .change-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .change-list li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .experimental-toggle span {
+    max-width: 9em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1100px) {

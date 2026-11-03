@@ -1,5 +1,5 @@
 import type { Finding } from '../engine/diagnostics';
-import type { SelectionStep } from '../engine/select';
+import type { ExperimentalDecision, SelectionStep } from '../engine/select';
 
 /** Helpers the copy uses to name things in the current UI language. */
 export interface CopyContext {
@@ -53,6 +53,19 @@ export interface Messages {
   load: { loading: string; notFound: string; network: string; invalid: string; empty: string; retry: string };
   theme: { label: string; light: string; dark: string; system: string };
   uiLanguage: string;
+  /** "Use experimental build": the ENG-14524 geolocation decision tree. */
+  experimental: {
+    toggle: string;
+    hint: string;
+    badge: string;
+    title: string;
+    body: (places: number) => string;
+    rules: string;
+    languages: (list: string) => string;
+    showOnMap: string;
+    showAll: string;
+    clear: string;
+  };
   summary: {
     published: (date: string) => string;
     geoOn: string;
@@ -168,7 +181,7 @@ export interface Messages {
     language: (source: 'browser' | 'document', raw: string | null, key: string | undefined) => string;
     regulation: (place: string, regulation: string | undefined, c: CopyContext) => string;
     visibility: (allowed: string[], passed: boolean, c: CopyContext) => string;
-    geolocation: (enabled: boolean, forced: boolean) => string;
+    geolocation: (enabled: boolean, forced: boolean, experimental: boolean) => string;
     candidates: (
       entry: {
         step: 'subdivision' | 'single-country' | 'multi-country' | 'regulation';
@@ -178,6 +191,7 @@ export interface Messages {
         regulationApplied: boolean;
         winner?: string;
         tieBreak?: { language: string | undefined; languageMatches: string[]; byOrder: boolean };
+        experimental?: ExperimentalDecision;
       },
       regulation: string | undefined,
       c: CopyContext,

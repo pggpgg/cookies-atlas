@@ -93,8 +93,10 @@ export function Header(props: {
   loading: boolean;
   ui: UiLanguage;
   theme: ThemeChoice;
+  experimental: boolean;
   onSubmit: (id: string) => void;
   onClearRecent: () => void;
+  onExperimental: (on: boolean) => void;
   onUi: (ui: UiLanguage) => void;
   onTheme: (theme: ThemeChoice) => void;
   onHome: () => void;
@@ -126,6 +128,14 @@ export function Header(props: {
         />
       )}
       <div class="header-tools">
+        <label class={`experimental-toggle${props.experimental ? ' on' : ''}`} title={t.experimental.hint}>
+          <input
+            type="checkbox"
+            checked={props.experimental}
+            onChange={(e) => props.onExperimental((e.currentTarget as HTMLInputElement).checked)}
+          />
+          <span>{t.experimental.toggle}</span>
+        </label>
         <div class="segmented-mini" role="group" aria-label={t.uiLanguage}>
           {(['fr', 'en'] as UiLanguage[]).map((l) => (
             <button key={l} type="button" aria-pressed={props.ui === l} onClick={() => props.onUi(l)}>

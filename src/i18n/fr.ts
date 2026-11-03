@@ -289,6 +289,22 @@ export const fr: Messages = {
   },
   theme: { label: 'Thème', light: 'Clair', dark: 'Sombre', system: 'Système' },
   uiLanguage: 'Langue',
+  experimental: {
+    toggle: 'Utiliser le build expérimental',
+    hint: 'Rejoue l’arbre de décision de géolocalisation proposé dans le ticket Linear ENG-14524 au lieu du SDK actuel, pour voir ce qu’il changerait.',
+    badge: 'Expérimental',
+    title: 'Build expérimental : arbre de décision ENG-14524',
+    body: (n) =>
+      n === 0
+        ? 'Aucun endroit n’obtient un bandeau différent de celui du SDK actuel.'
+        : `${n} ${plural(n, 'endroit obtient', 'endroits obtiennent')} un bandeau différent de celui du SDK actuel, pour au moins une langue de visiteur.`,
+    rules:
+      'Région, puis pays exact (bandeaux de région exclus), puis groupe de pays, puis réglementation, puis fallback. Plusieurs matchs : langue, puis réglementation, puis ordre de la liste. Aucun dans la langue du visiteur : le fallback s’il en fait partie, sinon le premier.',
+    languages: (list) => `Langues : ${list}`,
+    showOnMap: 'Voir sur la carte',
+    showAll: 'Voir tous les changements sur la carte',
+    clear: 'Retirer la surbrillance',
+  },
   summary: {
     published: (date) => `Publié le ${date}`,
     geoOn: 'Location-based display activé',
@@ -420,12 +436,13 @@ export const fr: Messages = {
         : allowed.length
           ? `La visibilité du bandeau est activée (${c.places(allowed, 6)}) : ce visiteur n’a aucun bandeau.`
           : 'La visibilité du bandeau est activée sans aucun pays : personne n’a de bandeau.',
-    geolocation: (enabled, forced) =>
-      enabled
+    geolocation: (enabled, forced, experimental) =>
+      (enabled
         ? 'Le location-based display est activé.'
         : forced
           ? 'Le location-based display est désactivé, simulé comme activé.'
-          : 'Le location-based display est désactivé : la position est ignorée.',
+          : 'Le location-based display est désactivé : la position est ignorée.') +
+      (experimental ? ' Build expérimental : l’arbre de décision ENG-14524 choisit le bandeau.' : ''),
     candidates: (e, regulation, c) => {
       const labels = {
         subdivision: (n: number) =>
@@ -438,6 +455,19 @@ export const fr: Messages = {
           n ? `${n} ${plural(n, 'bandeau utilise', 'bandeaux utilisent')} ${c.regulation(e.key)}` : `Aucun bandeau n’utilise ${c.regulation(e.key)}`,
       };
       let text = labels[e.step](e.matched.length);
+      if (e.experimental && e.winner) {
+        const x = e.experimental;
+        const lang = e.tieBreak?.language ? c.language(e.tieBreak.language) : 'la langue du visiteur';
+        const winner = c.config(e.winner);
+        if (x.outcome === 'single') text += ` : ${winner}`;
+        else if (x.outcome === 'language') text += ` ; seul ${winner} est en ${lang}`;
+        else if (x.outcome === 'regulation') text += ` ; ${c.configs(x.languageMatches)} sont en ${lang}, et ${winner} est celui qui utilise ${c.regulation(regulation)}`;
+        else if (x.outcome === 'order')
+          text += ` ; ${x.languageMatches.length} sont en ${lang}${x.regulationKept.length < x.languageMatches.length ? ` (${x.regulationKept.length} en ${c.regulation(regulation)})` : ''}, le premier de la liste gagne : ${winner}`;
+        else if (x.outcome === 'fallback') text += ` ; aucun n’est en ${lang}, et le fallback ${winner} en fait partie : il gagne`;
+        else text += ` ; aucun n’est en ${lang} et le fallback n’en fait pas partie : le premier de la liste gagne, ${winner}`;
+        return text + '.';
+      }
       if (e.matched.length > 1 && e.step !== 'regulation') {
         if (e.regulationApplied) text += ` ; garde ${c.configs(e.preferred)} pour ${c.regulation(regulation)}`;
         else if (regulation) text += ` ; aucun n’utilise ${c.regulation(regulation)}, tous restent en lice`;

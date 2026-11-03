@@ -39,6 +39,8 @@ export interface RegionOutcome extends RegionRequest {
 
 export interface Evaluation {
   mode: EvaluationMode;
+  /** True when the ENG-14524 decision tree was replayed instead of today's SDK. */
+  experimental: boolean;
   /** Language keys used by configurations, in configuration order, then OTHER_LANGUAGE. */
   languages: string[];
   regions: Map<string, RegionOutcome>;
@@ -52,6 +54,8 @@ export interface EvaluateOptions {
   visitor?: Omit<VisitorContext, 'countryCode' | 'subdivisionCode' | 'browserLanguage' | 'documentLanguage' | 'useDocumentLang'>;
   /** Extra regions to evaluate, e.g. first-level regions of countries drawn split on the map. */
   extraRegions?: RegionRequest[];
+  /** Replay the ENG-14524 decision tree instead of today's SDK. */
+  experimental?: boolean;
 }
 
 export const regionKey = (country: string, subdivision: string | null) => (subdivision ? `${country}-${subdivision}` : country);
@@ -137,7 +141,7 @@ export function evaluateRegion(
   project: AxeptioProject,
   region: RegionRequest,
   languages: string[],
-  options: Pick<EvaluateOptions, 'mode' | 'visitor'>,
+  options: Pick<EvaluateOptions, 'mode' | 'visitor' | 'experimental'>,
 ): RegionOutcome {
   const byLanguage: Record<string, string | null> = {};
   const selections: Record<string, Selection> = {};
@@ -153,7 +157,7 @@ export function evaluateRegion(
         subdivisionCode: region.subdivision ?? 'Unknown',
         browserLanguage: language === OTHER_LANGUAGE ? OTHER_PROBE : language,
       },
-      { forceGeolocation: options.mode === 'preview' },
+      { forceGeolocation: options.mode === 'preview', experimental: options.experimental },
     );
     selections[language] = selection;
     byLanguage[language] = selection.config?.identifier ?? null;
@@ -187,7 +191,7 @@ export function evaluateProject(project: AxeptioProject, options: EvaluateOption
     regions.set(outcome.key, outcome);
     for (const winner of outcome.winners) if (winner) wins.get(winner)?.add(outcome.key);
   }
-  return { mode: options.mode, languages, regions, wins };
+  return { mode: options.mode, experimental: Boolean(options.experimental), languages, regions, wins };
 }
 
 /** Which mode tells the truth about a project: geolocation OFF projects are previewed "as if ON". */
@@ -226,4 +230,44 @@ export function countriesWithSubdivisions(project: AxeptioProject): string[] {
     }
   }
   return [...set].sort();
+}
+
+export interface ChangeGroup {
+  /** Winner today (null = no banner). */
+  before: string | null;
+  /** Winner with the experimental tree. */
+  after: string | null;
+  /** Region keys where this change happens for at least one language, sorted. */
+  regions: string[];
+  /** Language keys affected, in evaluation order (OTHER_LANGUAGE last). */
+  languages: string[];
+}
+
+/**
+ * Places and languages where two evaluations of the same project disagree, grouped by
+ * "banner today → banner after", biggest groups first.
+ */
+export function compareEvaluations(base: Evaluation, next: Evaluation): ChangeGroup[] {
+  const groups = new Map<string, ChangeGroup & { regionSet: Set<string>; languageSet: Set<string> }>();
+  for (const [key, outcome] of base.regions) {
+    const other = next.regions.get(key);
+    if (!other) continue;
+    for (const language of base.languages) {
+      const before = outcome.byLanguage[language] ?? null;
+      const after = other.byLanguage[language] ?? null;
+      if (before === after) continue;
+      const id = `${before}|${after}`;
+      const group = groups.get(id) ?? { before, after, regions: [], languages: [], regionSet: new Set(), languageSet: new Set() };
+      group.regionSet.add(key);
+      group.languageSet.add(language);
+      groups.set(id, group);
+    }
+  }
+  return [...groups.values()]
+    .map(({ regionSet, languageSet, ...g }) => ({
+      ...g,
+      regions: [...regionSet].sort(),
+      languages: base.languages.filter((l) => languageSet.has(l)),
+    }))
+    .sort((a, b) => b.regions.length - a.regions.length);
 }

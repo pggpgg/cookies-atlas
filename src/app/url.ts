@@ -19,6 +19,8 @@ export interface UrlState {
   /** Isolated banner. */
   focus?: string;
   internal?: boolean;
+  /** Replay the ENG-14524 decision tree ("Use experimental build"). */
+  experimental?: boolean;
 }
 
 const TABS: Tab[] = ['banners', 'simulator', 'diagnostics', 'table'];
@@ -50,6 +52,7 @@ export function readUrlState(search: string = window.location.search): UrlState 
     tab: tab && TABS.includes(tab) ? tab : undefined,
     focus: get('focus'),
     internal: p.get('internal') === '1' || p.get('internal') === 'true',
+    experimental: p.get('experimental') === '1' || p.get('experimental') === 'true',
   };
 }
 
@@ -71,6 +74,7 @@ export function buildSearch(state: UrlState): string {
   set('tab', state.tab);
   set('focus', state.focus);
   if (state.internal) p.set('internal', '1');
+  if (state.experimental) p.set('experimental', '1');
   const s = p.toString();
   return s ? `?${s}` : '';
 }

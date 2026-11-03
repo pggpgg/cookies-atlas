@@ -6,6 +6,7 @@ import { clearRecent, fetchProject, readRecent, rememberProject, type LoadedProj
 import { readUrlState, shareUrl, writeUrlState, type Tab, type UrlState } from './app/url';
 import { EmptyState, Footer, GeoOffBanner, Header, LoadErrorMessage, Summary, type ThemeChoice } from './components/Chrome';
 import { Diagnostics } from './components/Diagnostics';
+import { ExperimentalChanges } from './components/Experimental';
 import { Icon } from './components/Icon';
 import { coverageOf, Legend } from './components/Legend';
 import { MapKey } from './components/MapKey';
@@ -13,7 +14,7 @@ import { MapView } from './components/MapView';
 import { RegionTable } from './components/RegionTable';
 import { Simulator, type SimulatorState } from './components/Simulator';
 import { diagnose, type Finding } from './engine/diagnostics';
-import { countriesWithSubdivisions, defaultModeOf, evaluateProject, OTHER_LANGUAGE, type EvaluationMode } from './engine/evaluate';
+import { compareEvaluations, countriesWithSubdivisions, defaultModeOf, evaluateProject, OTHER_LANGUAGE, type EvaluationMode } from './engine/evaluate';
 import { selectConfig } from './engine/select';
 import { buildCopyContext, detectUiLanguage, I18nContext, MESSAGES, type PlaceNames, type UiLanguage } from './i18n';
 import { exportMapPng } from './lib/export-png';
@@ -59,6 +60,10 @@ export function App() {
   const [isolated, setIsolated] = useState<string | null>(initial.focus ?? null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [activeFinding, setActiveFinding] = useState<Finding | null>(null);
+  /** "Use experimental build": replay the ENG-14524 decision tree instead of today's SDK. */
+  const [experimental, setExperimental] = useState<boolean>(initial.experimental ?? false);
+  /** Places highlighted from the experimental change list (group id or "all"). */
+  const [changeHighlight, setChangeHighlight] = useState<{ id: string; regions: string[] } | null>(null);
   const [sim, setSim] = useState<SimulatorState>({
     region: initial.region,
     blang: initial.blang ?? browserLanguage(),
@@ -177,10 +182,13 @@ export function App() {
   const now = loaded?.fetchedAt ?? Date.now();
   const evaluations = useMemo(() => {
     if (!project) return null;
-    const actual = evaluateProject(project, { mode: 'actual', visitor: { now } });
-    const preview = geolocationOn ? null : evaluateProject(project, { mode: 'preview', visitor: { now } });
-    return { actual, preview };
-  }, [project, geolocationOn, now]);
+    const run = (m: EvaluationMode, x: boolean) => evaluateProject(project, { mode: m, visitor: { now }, experimental: x });
+    const actual = run('actual', experimental);
+    const preview = geolocationOn ? null : run('preview', experimental);
+    // Today's SDK, kept alongside the experimental tree to list what it changes.
+    const today = experimental ? { actual: run('actual', false), preview: geolocationOn ? null : run('preview', false) } : { actual, preview };
+    return { actual, preview, today };
+  }, [project, geolocationOn, now, experimental]);
 
   const evaluation = evaluations ? (mode === 'preview' && evaluations.preview ? evaluations.preview : evaluations.actual) : null;
   const diagnosisEvaluation = evaluations ? (evaluations.preview ?? evaluations.actual) : null;
@@ -188,10 +196,16 @@ export function App() {
     () => (project && diagnosisEvaluation ? diagnose(project, diagnosisEvaluation, now) : []),
     [project, diagnosisEvaluation, now],
   );
+  const changes = useMemo(() => {
+    if (!experimental || !evaluations || !evaluation) return null;
+    const base = mode === 'preview' && evaluations.today.preview ? evaluations.today.preview : evaluations.today.actual;
+    return compareEvaluations(base, evaluation);
+  }, [experimental, evaluations, evaluation, mode]);
+  // Colors come from today's SDK so they don't shift when the experimental build is toggled.
   const colors = useMemo(
     () =>
       project && evaluations
-        ? assignColors(project, [evaluations.actual, evaluations.preview].filter((e): e is NonNullable<typeof e> => e !== null))
+        ? assignColors(project, [evaluations.today.actual, evaluations.today.preview].filter((e): e is NonNullable<typeof e> => e !== null))
         : { slotOf: new Map<string, number>() },
     [project, evaluations],
   );
@@ -228,9 +242,9 @@ export function App() {
             subdivisionCode: viewer.region ?? 'Unknown',
             browserLanguage: browserLanguage(),
             now,
-          })
+          }, { experimental })
         : null,
-    [project, viewer, now],
+    [project, viewer, now, experimental],
   );
 
   const countryOptions = useMemo(
@@ -260,6 +274,7 @@ export function App() {
     tab: tab === 'banners' ? undefined : tab,
     focus: isolated ?? undefined,
     internal,
+    experimental: experimental || undefined,
   };
   useEffect(() => writeUrlState(urlState), [JSON.stringify(urlState)]);
 
@@ -272,6 +287,7 @@ export function App() {
     }
     setIsolated(null);
     setActiveFinding(null);
+    setChangeHighlight(null);
     setModeChoice(undefined);
     setMapLanguage('all');
     setProjectId(id);
@@ -332,6 +348,7 @@ export function App() {
         title: project.projectName || project.projectId || 'Cookies Atlas',
         subtitle: [
           mode === 'preview' ? t.map.previewBadge : geolocationOn ? t.summary.geoOn : t.map.todayBadge,
+          experimental ? t.experimental.title : null,
           `${t.map.language}: ${effectiveLanguage === 'all' ? t.map.allLanguages : c.language(effectiveLanguage)}`,
           isolated ? `${t.legend.isolate}: ${c.config(isolated)}` : null,
           tab === 'diagnostics' && activeFinding ? t.diagnostics.finding(activeFinding, c).title : null,
@@ -373,6 +390,11 @@ export function App() {
           loading={loading}
           ui={ui}
           theme={theme}
+          experimental={experimental}
+          onExperimental={(on) => {
+            setExperimental(on);
+            setChangeHighlight(null);
+          }}
           onSubmit={openProject}
           onClearRecent={() => setRecent(clearRecent())}
           onUi={setUi}
@@ -413,6 +435,14 @@ export function App() {
                   onMode={setModeChoice}
                 />
               )}
+              {changes && (
+                <ExperimentalChanges
+                  groups={changes}
+                  colors={colors}
+                  highlighted={changeHighlight?.id ?? null}
+                  onHighlight={(id, regions) => setChangeHighlight(id && regions ? { id, regions } : null)}
+                />
+              )}
               <div class="layout">
                 <figure class="map-card">
                   <div class="map-toolbar">
@@ -425,6 +455,7 @@ export function App() {
                       ))}
                     </div>
                     <div class="toolbar-actions">
+                      {experimental && <span class="mode-badge mode-experimental">{t.experimental.badge}</span>}
                       {!geolocationOn && <span class={`mode-badge mode-${mode}`}>{mode === 'preview' ? t.map.previewBadge : t.map.todayBadge}</span>}
                       <button type="button" class="button button-ghost" onClick={() => copyLink(false)}>
                         <Icon name={copied === 'map' ? 'check' : 'link'} size={16} /> {copied === 'map' ? t.map.linkCopied : t.map.copyLink}
@@ -443,7 +474,7 @@ export function App() {
                       colors={colors}
                       language={effectiveLanguage}
                       focus={hovered ?? isolated}
-                      highlight={tab === 'diagnostics' ? (activeFinding?.regions ?? null) : null}
+                      highlight={changeHighlight?.regions ?? (tab === 'diagnostics' ? (activeFinding?.regions ?? null) : null)}
                       selected={tab === 'simulator' ? (simRegion ?? null) : null}
                       viewer={viewer}
                       ariaLabel={t.map.ariaLabel(project.projectName ?? '')}
@@ -497,6 +528,7 @@ export function App() {
                         <Simulator
                           project={project}
                           mode={mode}
+                          experimental={experimental}
                           colors={colors}
                           countries={countryOptions}
                           state={{ ...sim, region: simRegion }}

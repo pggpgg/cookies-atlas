@@ -307,6 +307,22 @@ export const en: Messages = {
   },
   theme: { label: 'Theme', light: 'Light', dark: 'Dark', system: 'System' },
   uiLanguage: 'Language',
+  experimental: {
+    toggle: 'Use experimental build',
+    hint: 'Replays the geolocation decision tree proposed in Linear ENG-14524 instead of today’s SDK, so you can see what it would change.',
+    badge: 'Experimental',
+    title: 'Experimental build: ENG-14524 decision tree',
+    body: (n) =>
+      n === 0
+        ? 'No place gets a different banner than with today’s SDK.'
+        : `${n} ${plural(n, 'place gets', 'places get')} a different banner than with today’s SDK, for at least one visitor language.`,
+    rules:
+      'Region, then exact country (region banners excluded), then country group, then regulation, then fallback. Several matches: language, then regulation, then list order. None in the visitor’s language: the fallback if it’s one of them, else the first one.',
+    languages: (list) => `Languages: ${list}`,
+    showOnMap: 'Show on map',
+    showAll: 'Show all changes on map',
+    clear: 'Clear highlight',
+  },
   summary: {
     published: (date) => `Published ${date}`,
     geoOn: 'Location-based display on',
@@ -441,12 +457,13 @@ export const en: Messages = {
         : allowed.length
           ? `Banner visibility is on (${c.places(allowed, 6)}): this visitor gets no banner.`
           : 'Banner visibility is on with no country: nobody gets a banner.',
-    geolocation: (enabled, forced) =>
-      enabled
+    geolocation: (enabled, forced, experimental) =>
+      (enabled
         ? 'Location-based display is on.'
         : forced
           ? 'Location-based display is off, previewed as on.'
-          : 'Location-based display is off: location is ignored.',
+          : 'Location-based display is off: location is ignored.') +
+      (experimental ? ' Experimental build: the ENG-14524 decision tree picks the banner.' : ''),
     candidates: (e, regulation, c) => {
       const labels = {
         subdivision: (n: number) =>
@@ -459,6 +476,19 @@ export const en: Messages = {
           n ? `${n} ${plural(n, 'banner uses', 'banners use')} ${c.regulation(e.key)}` : `No banner uses ${c.regulation(e.key)}`,
       };
       let text = labels[e.step](e.matched.length);
+      if (e.experimental && e.winner) {
+        const x = e.experimental;
+        const lang = e.tieBreak?.language ? c.language(e.tieBreak.language) : 'the visitor’s language';
+        const winner = c.config(e.winner);
+        if (x.outcome === 'single') text += `: ${winner}`;
+        else if (x.outcome === 'language') text += `; only ${winner} uses ${lang}`;
+        else if (x.outcome === 'regulation') text += `; ${c.configs(x.languageMatches)} use ${lang}, and ${winner} is the one using ${c.regulation(regulation)}`;
+        else if (x.outcome === 'order')
+          text += `; ${x.languageMatches.length} use ${lang}${x.regulationKept.length < x.languageMatches.length ? ` (${x.regulationKept.length} with ${c.regulation(regulation)})` : ''}, the first in the list wins: ${winner}`;
+        else if (x.outcome === 'fallback') text += `; none uses ${lang}, and the fallback ${winner} is one of them, so it wins`;
+        else text += `; none uses ${lang} and the fallback isn’t one of them, so the first in the list wins: ${winner}`;
+        return text + '.';
+      }
       if (e.matched.length > 1 && e.step !== 'regulation') {
         if (e.regulationApplied) text += `; kept ${c.configs(e.preferred)} for ${c.regulation(regulation)}`;
         else if (regulation) text += `; none uses ${c.regulation(regulation)}, so all stay in the running`;

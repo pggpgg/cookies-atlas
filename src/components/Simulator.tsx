@@ -22,6 +22,7 @@ export interface SimulatorState {
 interface SimulatorProps {
   project: AxeptioProject;
   mode: EvaluationMode;
+  experimental: boolean;
   colors: ColorAssignment;
   countries: Array<{ code: string; name: string }>;
   state: SimulatorState;
@@ -33,7 +34,7 @@ interface SimulatorProps {
 
 const COMMON_LANGUAGES = ['en-US', 'en-GB', 'en-CA', 'fr-CA', 'fr-FR', 'de-DE', 'es-ES', 'it-IT', 'nl-NL', 'pt-PT', 'pt-BR'];
 
-export function Simulator({ project, mode, colors, countries, state, internal, onChange, onCopyLink, linkCopied }: SimulatorProps) {
+export function Simulator({ project, mode, experimental, colors, countries, state, internal, onChange, onCopyLink, linkCopied }: SimulatorProps) {
   const { t, c, ui } = useI18n();
   const [country, sub] = (state.region ?? '').split('-');
   const [regions, setRegions] = useState<RegionInfo[] | null>(null);
@@ -66,9 +67,9 @@ export function Simulator({ project, mode, colors, countries, state, internal, o
         cookiesVersion: state.cv || null,
         pagePath: state.page || '/',
       },
-      { forceGeolocation: mode === 'preview' },
+      { forceGeolocation: mode === 'preview', experimental },
     );
-  }, [project, mode, country, sub, state.blang, state.hlang, state.logic, state.cv, state.page]);
+  }, [project, mode, experimental, country, sub, state.blang, state.hlang, state.logic, state.cv, state.page]);
 
   const configLanguages = languagesOf(project).filter((l) => l !== OTHER_LANGUAGE);
   const languageOptions = [...new Set([...configLanguages, ...COMMON_LANGUAGES])];
@@ -88,7 +89,7 @@ export function Simulator({ project, mode, colors, countries, state, internal, o
         case 'visibility':
           return { text: t.trace.visibility(entry.allowed, entry.passed, c), decisive: !entry.passed };
         case 'geolocation':
-          return { text: t.trace.geolocation(entry.enabled, entry.forced), decisive: false };
+          return { text: t.trace.geolocation(entry.enabled, entry.forced, entry.experimental), decisive: false };
         case 'candidates':
           return { text: t.trace.candidates(entry, selection?.regulation, c), decisive: Boolean(entry.winner) };
         case 'stop':

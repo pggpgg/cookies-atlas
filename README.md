@@ -76,6 +76,7 @@ areas with their region's banner and never evaluates codes no visitor can have.
   | `focus` | Isolated banner (config identifier) |
   | `ui` | Interface language, `fr` or `en` |
   | `internal=1` | Show links to the Axeptio admin (useful for the Axeptio team only) |
+  | `experimental=1` | Replay the geolocation decision tree proposed in Linear ENG-14524 (the "Use experimental build" checkbox) and list what it changes |
 
 ## Development
 
