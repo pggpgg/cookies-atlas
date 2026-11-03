@@ -1,7 +1,7 @@
 /** "Use experimental build": what the ENG-14524 decision tree changes compared with today's SDK. */
 import { useState } from 'preact/hooks';
 import { colorOf, type ColorAssignment } from '../app/colors';
-import { OTHER_LANGUAGE, type ChangeGroup } from '../engine/evaluate';
+import { firstLevelKeysOf, OTHER_LANGUAGE, type ChangeGroup } from '../engine/evaluate';
 import { useI18n } from '../i18n';
 import { Icon } from './Icon';
 
@@ -18,9 +18,11 @@ export function ExperimentalChanges(props: {
 }) {
   const { t, c } = useI18n();
   const [expanded, setExpanded] = useState(false);
-  const places = new Set(props.groups.flatMap((g) => g.regions)).size;
+  // Visitors with no detected region light up their whole country on the map.
+  const mapKeys = (g: ChangeGroup) => [...g.regions, ...g.undetected.flatMap(firstLevelKeysOf)];
+  const places = new Set(props.groups.flatMap((g) => [...g.regions, ...g.undetected.map((cc) => `${cc}?`)])).size;
   const shown = expanded ? props.groups : props.groups.slice(0, VISIBLE);
-  const allRegions = [...new Set(props.groups.flatMap((g) => g.regions))];
+  const allRegions = [...new Set(props.groups.flatMap(mapKeys))];
 
   return (
     <section class="experimental-strip" role="status">
@@ -65,11 +67,13 @@ export function ExperimentalChanges(props: {
                       <strong>{c.config(g.after)}</strong>
                     </span>
                   </span>
-                  <span class="change-places">{c.places(g.regions, 6)}</span>
+                  <span class="change-places">
+                    {c.list([...(g.regions.length ? [c.places(g.regions, 6)] : []), ...g.undetected.map((cc) => t.experimental.undetected(c.country(cc)))])}
+                  </span>
                   <span class="change-languages muted">
                     {languages.length ? t.experimental.languages(c.list(languages.map((l) => c.language(l)))) : t.experimental.otherOnly}
                   </span>
-                  <button type="button" class="text-button small" onClick={() => props.onHighlight(active ? null : id, active ? null : g.regions)}>
+                  <button type="button" class="text-button small" onClick={() => props.onHighlight(active ? null : id, active ? null : mapKeys(g))}>
                     {active ? t.experimental.clear : t.experimental.showOnMap}
                   </button>
                 </li>

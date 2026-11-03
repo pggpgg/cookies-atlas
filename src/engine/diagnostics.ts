@@ -12,7 +12,7 @@ import {
   type Evaluation,
   type RegionOutcome,
   type ReportedAs,
-} from './evaluate';
+ firstLevelKeysOf } from './evaluate';
 import { COUNTRY_CODE_FIXES, ISO_3166_1 } from './iso-3166';
 import { modesOf } from './modes';
 import { FIRST_LEVEL_REGIONS } from './region-parents';
@@ -30,6 +30,7 @@ export type FindingKind =
   | 'fallback-missing'
   | 'dead-config'
   | 'over-capture'
+  | 'undetected-region'
   | 'regulation-mismatch'
   | 'shadowed-listing'
   | 'order-tie'
@@ -180,7 +181,8 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
   const byId = new Map(configs.map((c) => [c.identifier, c]));
   const settings = project.client?.cookiesSettings ?? null;
   const geolocationOn = Boolean(settings?.geolocation);
-  const regions = [...evaluation.regions.values()];
+  // Country-wide outcomes no visitor gets (every region has its own) can't cause a finding.
+  const regions = [...evaluation.regions.values()].filter((o) => o.reachable);
 
   // --- Project-level settings ------------------------------------------------------------
   if (!geolocationOn) {
@@ -316,6 +318,7 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
     for (const key of evaluation.wins.get(config.identifier) ?? []) {
       if (intent.subdivisions.includes(key)) continue;
       const outcome = evaluation.regions.get(key)!;
+      if (!outcome.reachable) continue; // every region of the country has its own banner
       if (outcome.step !== 'single-country' && outcome.step !== 'multi-country') continue;
       // Only countries the config targets a region of: winning in another listed country is intended.
       const intendedHere = intent.subdivisions.filter((sub) => sub.startsWith(outcome.country + '-'));
@@ -347,10 +350,8 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
   for (const group of captureGroups.values()) {
     const single = group.step === 'single-country';
     // The country's first-level regions no banner targets: where the capturing banners really show.
-    // When there are none, only visitors located without a region (rare) get them: a note, not a warning.
     const firstLevel = FIRST_LEVEL_REGIONS[group.country] ?? [];
     const uncovered = firstLevel.length > 0 ? firstLevel.map((code) => `${group.country}-${code}`).filter((key) => !targetedRegions.has(key)) : null;
-    const undetected = uncovered !== null && uncovered.length === 0;
     // At the single-country step, a config listing the country among others, with the regulation
     // of the rest of the country, loses only because the capturing ones are checked first.
     const competitor = single
@@ -374,7 +375,7 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
     findings.push({
       id: `over-capture:${group.country}`,
       kind: 'over-capture',
-      severity: undetected ? 'info' : 'warning',
+      severity: 'warning',
       configs: competitor ? [...group.capturing, competitor.identifier] : [...group.capturing],
       regions: [...group.regions].sort(),
       data: {
@@ -389,8 +390,6 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
         tie,
         /** Region keys no banner targets (null when the map has no region list for the country). */
         uncovered,
-        /** Every region is targeted: only visitors located without a region get the capturing banners. */
-        undetected,
       },
     });
   }
@@ -613,6 +612,21 @@ export function diagnose(project: AxeptioProject, evaluation: Evaluation, now: n
   }
   for (const finding of behaviorSplits.values()) finding.regions.sort();
   findings.push(...behaviorSplits.values());
+
+  // Countries where every region has its own banner: visitors whose region Axeptio fails to detect
+  // would land on a banner that doesn't list the country. Only reported when it actually happens.
+  for (const outcome of evaluation.regions.values()) {
+    if (outcome.reachable || outcome.stranded.length === 0) continue;
+    const banners = [...new Set(outcome.stranded.map((l) => outcome.byLanguage[l] ?? null))];
+    findings.push({
+      id: `undetected-region:${outcome.country}`,
+      kind: 'undetected-region',
+      severity: 'warning',
+      configs: banners.filter((b): b is string => b !== null),
+      regions: firstLevelKeysOf(outcome.country),
+      data: { country: outcome.country, languages: outcome.stranded, banners },
+    });
+  }
 
   // Running A/B tests.
   for (const test of project.abTests ?? []) {

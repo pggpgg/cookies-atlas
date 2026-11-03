@@ -84,13 +84,6 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
       const capturing = c.configs(d.capturing);
       const country = c.country(d.country);
       const wins = many ? 'ce sont eux qui gagnent' : 'c’est lui qui gagne';
-      if (d.undetected) {
-        return {
-          title: `${country} : les visiteurs dont la région n’est pas détectée reçoivent ${capturing}`,
-          mechanism: `Vos bandeaux ciblent toutes les régions de ce pays : ça concerne seulement les visiteurs localisés dans ce pays sans région, ce qui devrait être rare. Aucun bandeau de région ne les matche, donc le SDK passe aux bandeaux qui listent ce pays, et ${wins}.`,
-          fix: 'Rien à changer si c’est le bandeau qu’ils doivent recevoir.',
-        };
-      }
       const nIntended = (d.intended as string[]).length;
       // Au-delà de trois régions, la liste se résume à un nombre.
       const intended =
@@ -124,6 +117,21 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
           `${many ? 'Ils ciblent' : 'Il cible'} ${intended}, mais ${many ? 'listent' : 'liste'} aussi ce pays. Ailleurs au pays, les visiteurs ne matchent aucun bandeau de région : le SDK passe donc aux bandeaux qui listent seulement ce pays, et ${wins}.` +
           (competitor ? ` ${competitor} liste aussi ce pays, mais avec d’autres : il passe seulement après.` : ''),
         fix: `${add}, et placez-${regs.length > 1 ? 'les' : 'le'} au-dessus de ${capturing} dans votre liste. ${takes}`,
+      };
+    }
+    case 'undetected-region': {
+      const country = c.country(d.country);
+      const langs = (d.languages as string[]).filter((l) => l !== OTHER_LANGUAGE);
+      const who = langs.length ? `les visiteurs en ${c.list(langs.map((l) => c.language(l)))}` : 'les visiteurs dont aucun bandeau n’utilise la langue';
+      const banners = d.banners as Array<string | null>;
+      const named = banners.filter((b): b is string => b !== null);
+      const gets = named.length
+        ? `${c.configs(named)}${banners.includes(null) ? ' (ou aucun bandeau)' : ''}, qui ne ${named.length > 1 ? 'listent' : 'liste'} pas ce pays`
+        : 'aucun bandeau';
+      return {
+        title: `${country} : les visiteurs dont la région n’est pas détectée recevraient ${named.length ? c.configs(named) : 'aucun bandeau'}`,
+        mechanism: `Chaque région de ce pays a son propre bandeau, et un bandeau de région ne matche que si la région du visiteur est connue. Axeptio la détecte presque toujours, mais sinon, aucun bandeau qui liste ce pays ne prend ${who} : ils reçoivent ${gets}.`,
+        fix: `Listez ${country} dans un bandeau qui ne cible pas de régions (seul ou dans un groupe de pays), pour que ces visiteurs reçoivent quand même un bandeau prévu pour ce pays.`,
       };
     }
     case 'regulation-mismatch': {
@@ -303,6 +311,7 @@ export const fr: Messages = {
       'Région, puis pays exact (bandeaux de région exclus), puis groupe de pays, puis réglementation, puis fallback. Plusieurs matchs : langue, puis réglementation, puis ordre de la liste. Aucun dans la langue du visiteur : le fallback s’il en fait partie, sinon le premier.',
     languages: (list) => `Langues : ${list}`,
     otherOnly: 'Seulement des langues de visiteur qu’aucun bandeau n’utilise',
+    undetected: (country) => `${country} (région non détectée)`,
     showOnMap: 'Voir sur la carte',
     showAll: 'Voir tous les changements sur la carte',
     clear: 'Retirer la surbrillance',

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { diagnose } from '../src/engine/diagnostics';
 import { compareEvaluations, evaluateProject } from '../src/engine/evaluate';
 import { selectConfig, type TraceEntry } from '../src/engine/select';
 import type { AxeptioConfig, AxeptioProject } from '../src/engine/types';
@@ -126,11 +127,35 @@ describe('ENG-14524 experimental decision tree', () => {
         cfg('roc-en', 'en', ['CA'], 'ccpa', { subdivision: rest }),
       ],
     };
-    // The trees disagree for "Canada, no region", which Axeptio never reports.
+    // Visitors in Canada with no detected region: a Canadian banner today, the US one with the new tree.
     expect(selectConfig(project, visitor('CA', 'en')).config?.identifier).toBe('roc-en');
     expect(run(project, 'CA', 'en').config?.identifier).toBe('us-en');
     const today = evaluateProject(project, { mode: 'actual' });
     const next = evaluateProject(project, { mode: 'actual', experimental: true });
-    expect(compareEvaluations(today, next).flatMap((g) => g.regions)).not.toContain('CA');
+    expect(today.regions.get('CA')?.stranded).toEqual([]);
+    expect(next.regions.get('CA')?.stranded.length).toBeGreaterThan(0);
+    const groups = compareEvaluations(today, next);
+    expect(groups.flatMap((g) => g.regions)).not.toContain('CA');
+    expect(groups.flatMap((g) => g.undetected)).toEqual(['CA']);
+    // Diagnostics warn only where it happens: with the new tree, not today.
+    expect(diagnose(project, today).filter((f) => f.kind === 'undetected-region')).toEqual([]);
+    const [warning] = diagnose(project, next).filter((f) => f.kind === 'undetected-region');
+    expect(warning.data).toMatchObject({ country: 'CA', banners: ['us-en'] });
+    expect(warning.regions).toContain('CA-ON');
+  });
+
+  it('says nothing about undetected regions when a banner listing the country still catches those visitors', () => {
+    const rest = ['AB', 'BC', 'MB', 'NB', 'NL', 'NT', 'NS', 'NU', 'ON', 'PE', 'SK', 'YT'].map((r) => `CA-${r}`);
+    const project: AxeptioProject = {
+      client: { cookiesSettings: { geolocation: true, geolocationFallbackConfigId: 'ca' } },
+      cookies: [
+        cfg('qc', 'fr', ['CA'], 'loi25', { subdivision: ['CA-QC'] }),
+        cfg('roc', 'en', ['CA'], 'ccpa', { subdivision: rest }),
+        cfg('ca', 'en', ['CA'], 'ccpa'),
+      ],
+    };
+    const next = evaluateProject(project, { mode: 'actual', experimental: true });
+    expect(next.regions.get('CA')?.stranded).toEqual([]);
+    expect(diagnose(project, next).filter((f) => f.kind === 'undetected-region')).toEqual([]);
   });
 });

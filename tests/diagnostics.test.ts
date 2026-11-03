@@ -434,10 +434,10 @@ describe('region banners that also list their country', () => {
       'over-capture',
     );
     expect(finding.severity).toBe('warning');
-    expect(finding.data).toMatchObject({ uncovered: rest, undetected: false });
+    expect(finding.data).toMatchObject({ uncovered: rest });
   });
 
-  it('is only a note when every region is targeted: just visitors located without a region get them', () => {
+  it('says nothing when every region is targeted: Axeptio always locates visitors in a region', () => {
     const findings = run(
       project([
         cfg('qc', { country: ['CA'], subdivision: ['CA-QC'], regulation: 'loi25', language: 'fr' }),
@@ -446,9 +446,6 @@ describe('region banners that also list their country', () => {
       ]),
       'actual',
     );
-    const [finding] = ofKind(findings, 'over-capture');
-    expect(finding.severity).toBe('info');
-    expect(finding.data).toMatchObject({ uncovered: [], undetected: true });
-    expect(finding.regions).toEqual(['CA']);
+    expect(ofKind(findings, 'over-capture')).toEqual([]);
   });
 });

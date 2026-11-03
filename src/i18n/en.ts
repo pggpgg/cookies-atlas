@@ -117,13 +117,6 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
       const capturing = c.configs(d.capturing);
       const country = c.countryIn(d.country);
       const wins = they('this one wins', 'these win');
-      if (d.undetected) {
-        return {
-          title: `Visitors in ${country} whose region isn't detected get ${capturing}`,
-          mechanism: `Your banners target every region of ${country}, so this only concerns visitors located in ${country} without a region, which should be rare. No region banner matches them, so the SDK falls back to banners listing ${country}, and ${wins}.`,
-          fix: "Nothing to change if that's the banner they should get.",
-        };
-      }
       const nIntended = (d.intended as string[]).length;
       const intended = nIntended > 3 ? `${nIntended} regions of ${country}` : c.placesIn(d.intended);
       const uncovered = d.uncovered as string[] | null;
@@ -152,6 +145,21 @@ function finding(f: Finding, c: CopyContext): FindingCopy {
           `${they('It targets', 'They target')} ${intended}, but ${they('it also lists', 'they also list')} ${country} as ${they('its', 'their')} country. Visitors elsewhere in ${country} match no region banner, so the SDK falls back to banners listing only ${country}, and ${wins}.` +
           (competitor ? ` ${competitor} lists ${country} too, but among other countries, so it only comes after.` : ''),
         fix: `${add}, and put ${it} above ${capturing} in your list. ${takes}`,
+      };
+    }
+    case 'undetected-region': {
+      const country = c.countryIn(d.country);
+      const langs = (d.languages as string[]).filter((l) => l !== OTHER_LANGUAGE);
+      const who = langs.length ? `${c.list(langs.map((l) => c.language(l)))} visitors` : 'visitors whose language no banner uses';
+      const banners = d.banners as Array<string | null>;
+      const named = banners.filter((b): b is string => b !== null);
+      const gets = named.length
+        ? `${c.configs(named)}${banners.includes(null) ? ' (or no banner)' : ''}, which ${plural(named.length, "doesn't", "don't")} list ${country}`
+        : 'no banner';
+      return {
+        title: `In ${country}, visitors whose region isn't detected would get ${named.length ? c.configs(named) : 'no banner'}`,
+        mechanism: `Every region of ${country} has its own banner, and a region banner only matches when the visitor's region is known. Axeptio almost always detects it, but if it doesn't, no banner listing ${country} catches ${who}: they get ${gets}.`,
+        fix: `List ${country} on a banner that doesn't target regions (alone or in a country group), so these visitors still get a banner meant for ${country}.`,
       };
     }
     case 'regulation-mismatch': {
@@ -321,6 +329,7 @@ export const en: Messages = {
       'Region, then exact country (region banners excluded), then country group, then regulation, then fallback. Several matches: language, then regulation, then list order. None in the visitor’s language: the fallback if it’s one of them, else the first one.',
     languages: (list) => `Languages: ${list}`,
     otherOnly: 'Only visitor languages no banner uses',
+    undetected: (country) => `${country} (region not detected)`,
     showOnMap: 'Show on map',
     showAll: 'Show all changes on map',
     clear: 'Clear highlight',

@@ -25,6 +25,18 @@ export interface RegionRequest {
 export interface RegionOutcome extends RegionRequest {
   /** "FR" for the country as a whole, "CA-QC" for a region. */
   key: string;
+  /**
+   * False for a country-wide outcome no visitor ever gets: Axeptio always locates visitors in a
+   * first-level region too, so when every region of the country has its own outcome, the region
+   * match decides for everyone.
+   */
+  reachable: boolean;
+  /**
+   * For an unreachable country-wide outcome: the languages whose visitors, if Axeptio ever failed
+   * to detect their region, would get a banner that doesn't list the country (or none at all).
+   * Empty everywhere else, and whenever those visitors would still get a banner meant for the country.
+   */
+  stranded: string[];
   regulation: string | undefined;
   step: SelectionStep;
   /** Winning config identifier (null = no banner) for each language key, OTHER_LANGUAGE included. */
@@ -171,6 +183,8 @@ export function evaluateRegion(
   return {
     ...region,
     key: regionKey(region.country, region.subdivision),
+    reachable: true,
+    stranded: [],
     regulation,
     step,
     byLanguage,
@@ -189,9 +203,38 @@ export function evaluateProject(project: AxeptioProject, options: EvaluateOption
   for (const request of regionsToEvaluate(project, options.extraRegions)) {
     const outcome = evaluateRegion(project, request, languages, options);
     regions.set(outcome.key, outcome);
+  }
+  const byId = new Map((project.cookies ?? []).map((c) => [c.identifier, c]));
+  const targeted = new Set((project.cookies ?? []).flatMap(subdivisionsOf));
+  for (const outcome of regions.values()) {
+    if (outcome.subdivision === null) {
+      const firstLevel = FIRST_LEVEL_REGIONS[outcome.country];
+      outcome.reachable = !firstLevel?.length || !firstLevel.every((code) => regions.has(regionKey(outcome.country, code)));
+      // Only countries whose every region has its own banner: elsewhere a visitor without a region
+      // gets what the rest of the country gets anyway.
+      const allTargeted = Boolean(firstLevel?.length) && firstLevel.every((code) => targeted.has(regionKey(outcome.country, code)));
+      if (allTargeted) outcome.stranded = strandedLanguages(outcome, languages, byId);
+    }
     for (const winner of outcome.winners) if (winner) wins.get(winner)?.add(outcome.key);
   }
   return { mode: options.mode, experimental: Boolean(options.experimental), languages, regions, wins };
+}
+
+/** Region keys of a country's first-level regions ("CA-QC", "CA-ON"...), empty when unknown. */
+export const firstLevelKeysOf = (country: string) => (FIRST_LEVEL_REGIONS[country] ?? []).map((code) => regionKey(country, code));
+
+/**
+ * Languages for which a visitor located in the country without a region would land on a banner
+ * that doesn't list the country, or on none (location-based display on, visibility gate passed).
+ */
+function strandedLanguages(outcome: RegionOutcome, languages: string[], byId: Map<string, AxeptioConfig>): string[] {
+  return languages.filter((language) => {
+    const selection = outcome.selections[language];
+    if (!selection?.geolocation || selection.step === 'visibility') return false;
+    const winner = outcome.byLanguage[language];
+    const config = winner ? byId.get(winner) : undefined;
+    return !config || !countriesOf(config).includes(outcome.country);
+  });
 }
 
 /** Which mode tells the truth about a project: geolocation OFF projects are previewed "as if ON". */
@@ -239,6 +282,11 @@ export interface ChangeGroup {
   after: string | null;
   /** Region keys where some banner switches to `after` for at least one language, sorted. */
   regions: string[];
+  /**
+   * Countries whose visitors with no detected region switch to `after`, listed only when the
+   * experimental tree would leave them on a banner that doesn't list the country (or none).
+   */
+  undetected: string[];
   /** Language keys affected, in evaluation order (OTHER_LANGUAGE last). */
   languages: string[];
 }
@@ -249,26 +297,25 @@ export interface ChangeGroup {
  */
 export function compareEvaluations(base: Evaluation, next: Evaluation): ChangeGroup[] {
   const order = [...base.wins.keys()];
-  // Axeptio always gets a first-level region along with the country. When every region of a
-  // country has its own outcome, the country-wide one is never served: changes there don't count.
-  const unreachable = (outcome: RegionOutcome) => {
-    if (outcome.subdivision !== null) return false;
-    const regions = FIRST_LEVEL_REGIONS[outcome.country];
-    return Boolean(regions?.length) && regions.every((code) => base.regions.has(regionKey(outcome.country, code)));
-  };
   const rank = (id: string | null) => (id === null ? Infinity : order.indexOf(id));
-  const groups = new Map<string, { after: string | null; befores: Set<string | null>; regions: Set<string>; languages: Set<string> }>();
+  const groups = new Map<
+    string,
+    { after: string | null; befores: Set<string | null>; regions: Set<string>; undetected: Set<string>; languages: Set<string> }
+  >();
   for (const [key, outcome] of base.regions) {
     const other = next.regions.get(key);
-    if (!other || unreachable(outcome)) continue;
+    if (!other) continue;
+    // Visitors with no detected region: only worth listing when the new tree strands them.
+    if (!outcome.reachable && other.stranded.length === 0) continue;
     for (const language of base.languages) {
       const before = outcome.byLanguage[language] ?? null;
       const after = other.byLanguage[language] ?? null;
       if (before === after) continue;
       const id = String(after);
-      const group = groups.get(id) ?? { after, befores: new Set(), regions: new Set(), languages: new Set() };
+      const group = groups.get(id) ?? { after, befores: new Set(), regions: new Set(), undetected: new Set(), languages: new Set() };
       group.befores.add(before);
-      group.regions.add(key);
+      if (outcome.reachable) group.regions.add(key);
+      else group.undetected.add(outcome.country);
       group.languages.add(language);
       groups.set(id, group);
     }
@@ -278,7 +325,8 @@ export function compareEvaluations(base: Evaluation, next: Evaluation): ChangeGr
       befores: [...g.befores].sort((a, b) => rank(a) - rank(b)),
       after: g.after,
       regions: [...g.regions].sort(),
+      undetected: [...g.undetected].sort(),
       languages: base.languages.filter((l) => g.languages.has(l)),
     }))
-    .sort((a, b) => b.regions.length - a.regions.length);
+    .sort((a, b) => b.regions.length + b.undetected.length - (a.regions.length + a.undetected.length));
 }

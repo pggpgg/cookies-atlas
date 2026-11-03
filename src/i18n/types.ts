@@ -64,6 +64,8 @@ export interface Messages {
     body: (places: number) => string;
     rules: string;
     languages: (list: string) => string;
+    /** A country's visitors with no detected region: "Canada (region not detected)". */
+    undetected: (country: string) => string;
     /** The change only affects visitor languages no banner uses. */
     otherOnly: string;
     showOnMap: string;
