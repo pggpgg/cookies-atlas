@@ -1,13 +1,13 @@
 /** "Use experimental build": what the ENG-14524 decision tree changes compared with today's SDK. */
 import { useState } from 'preact/hooks';
 import { colorOf, type ColorAssignment } from '../app/colors';
-import type { ChangeGroup } from '../engine/evaluate';
+import { OTHER_LANGUAGE, type ChangeGroup } from '../engine/evaluate';
 import { useI18n } from '../i18n';
 import { Icon } from './Icon';
 
 const VISIBLE = 8;
 
-export const changeId = (g: ChangeGroup) => `${g.before}|${g.after}`;
+export const changeId = (g: ChangeGroup) => String(g.after);
 
 export function ExperimentalChanges(props: {
   groups: ChangeGroup[];
@@ -34,22 +34,41 @@ export function ExperimentalChanges(props: {
       {props.groups.length > 0 && (
         <>
           <ul class="change-list">
+            <li class="change-head" aria-hidden="true">
+              <span>{t.experimental.today}</span>
+              <span />
+              <span>{t.experimental.badge}</span>
+            </li>
             {shown.map((g) => {
               const id = changeId(g);
               const active = props.highlighted === id;
+              // Only languages some banner of the project uses ("other languages" says nothing useful here).
+              const languages = g.languages.filter((l) => l !== OTHER_LANGUAGE);
               return (
                 <li key={id} class={active ? 'active' : undefined}>
-                  <span class="change-pair">
-                    <span class="swatch" style={{ background: colorOf(props.colors, g.before) }} />
-                    <span>{c.config(g.before)}</span>
-                    <span class="change-arrow" aria-label="→">
-                      →
+                  <span class={`change-from${g.befores.length > 1 ? ' many' : ''}`} data-label={t.experimental.today}>
+                    {g.befores.map((before) => (
+                      <span key={String(before)} class="change-banner">
+                        <span class="sr-only">{t.experimental.today}: </span>
+                        <span class="swatch" style={{ background: colorOf(props.colors, before) }} />
+                        <span>{c.config(before)}</span>
+                      </span>
+                    ))}
+                  </span>
+                  <span class="change-arrow" aria-label="→">
+                    →
+                  </span>
+                  <span class="change-to" data-label={t.experimental.badge}>
+                    <span class="sr-only">{t.experimental.badge}: </span>
+                    <span class="change-banner">
+                      <span class="swatch" style={{ background: colorOf(props.colors, g.after) }} />
+                      <strong>{c.config(g.after)}</strong>
                     </span>
-                    <span class="swatch" style={{ background: colorOf(props.colors, g.after) }} />
-                    <strong>{c.config(g.after)}</strong>
                   </span>
                   <span class="change-places">{c.places(g.regions, 6)}</span>
-                  <span class="change-languages muted">{t.experimental.languages(c.list(g.languages.map((l) => c.language(l))))}</span>
+                  <span class="change-languages muted">
+                    {languages.length ? t.experimental.languages(c.list(languages.map((l) => c.language(l)))) : t.experimental.otherOnly}
+                  </span>
                   <button type="button" class="text-button small" onClick={() => props.onHighlight(active ? null : id, active ? null : g.regions)}>
                     {active ? t.experimental.clear : t.experimental.showOnMap}
                   </button>

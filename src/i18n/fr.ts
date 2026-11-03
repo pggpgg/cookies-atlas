@@ -293,6 +293,7 @@ export const fr: Messages = {
     toggle: 'Utiliser le build expérimental',
     hint: 'Rejoue l’arbre de décision de géolocalisation proposé dans le ticket Linear ENG-14524 au lieu du SDK actuel, pour voir ce qu’il changerait.',
     badge: 'Expérimental',
+    today: 'Aujourd’hui',
     title: 'Build expérimental : arbre de décision ENG-14524',
     body: (n) =>
       n === 0
@@ -301,6 +302,7 @@ export const fr: Messages = {
     rules:
       'Région, puis pays exact (bandeaux de région exclus), puis groupe de pays, puis réglementation, puis fallback. Plusieurs matchs : langue, puis réglementation, puis ordre de la liste. Aucun dans la langue du visiteur : le fallback s’il en fait partie, sinon le premier.',
     languages: (list) => `Langues : ${list}`,
+    otherOnly: 'Seulement des langues de visiteur qu’aucun bandeau n’utilise',
     showOnMap: 'Voir sur la carte',
     showAll: 'Voir tous les changements sur la carte',
     clear: 'Retirer la surbrillance',

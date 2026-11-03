@@ -311,6 +311,7 @@ export const en: Messages = {
     toggle: 'Use experimental build',
     hint: 'Replays the geolocation decision tree proposed in Linear ENG-14524 instead of today’s SDK, so you can see what it would change.',
     badge: 'Experimental',
+    today: 'Today',
     title: 'Experimental build: ENG-14524 decision tree',
     body: (n) =>
       n === 0
@@ -319,6 +320,7 @@ export const en: Messages = {
     rules:
       'Region, then exact country (region banners excluded), then country group, then regulation, then fallback. Several matches: language, then regulation, then list order. None in the visitor’s language: the fallback if it’s one of them, else the first one.',
     languages: (list) => `Languages: ${list}`,
+    otherOnly: 'Only visitor languages no banner uses',
     showOnMap: 'Show on map',
     showAll: 'Show all changes on map',
     clear: 'Clear highlight',

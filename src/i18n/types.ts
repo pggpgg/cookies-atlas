@@ -58,10 +58,14 @@ export interface Messages {
     toggle: string;
     hint: string;
     badge: string;
+    /** Column label for the banner visitors get with today's SDK. */
+    today: string;
     title: string;
     body: (places: number) => string;
     rules: string;
     languages: (list: string) => string;
+    /** The change only affects visitor languages no banner uses. */
+    otherOnly: string;
     showOnMap: string;
     showAll: string;
     clear: string;

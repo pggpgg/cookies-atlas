@@ -1865,7 +1865,7 @@ fieldset.segmented {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
+  grid-template-columns: max-content max-content max-content minmax(0, 1fr) max-content max-content;
   gap: 2px 0;
 }
 
@@ -1884,9 +1884,61 @@ fieldset.segmented {
   background: var(--surface-2);
 }
 
-.change-pair {
+.change-list li.change-head {
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.change-to {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* On narrow screens the header row is hidden: each side carries its own label. */
+.change-from::before,
+.change-to::before {
+  display: none;
+  content: attr(data-label);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.change-from {
+  position: relative;
+  justify-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Several banners switching to the same one: a bracket gathers them into one arrow. */
+.change-from.many {
+  padding-right: 14px;
+}
+
+.change-from.many::after {
+  content: '';
+  position: absolute;
+  top: 0.55em;
+  bottom: 0.55em;
+  right: 0;
+  width: 8px;
+  border: 1.5px solid var(--text-muted);
+  border-left: 0;
+  border-radius: 0 6px 6px 0;
+}
+
+.change-banner {
   display: inline-flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   min-width: 0;
@@ -1894,6 +1946,11 @@ fieldset.segmented {
 
 .change-arrow {
   color: var(--text-muted);
+  margin-left: -10px;
+}
+
+.change-from:not(.many) + .change-arrow {
+  margin-left: -6px;
 }
 
 .change-places {
@@ -1917,6 +1974,20 @@ fieldset.segmented {
   }
   .change-list li {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .change-arrow,
+  .change-from:not(.many) + .change-arrow {
+    margin-left: 0;
+  }
+  .change-list li.change-head {
+    display: none;
+  }
+  .change-from::before,
+  .change-to::before {
+    display: block;
+  }
+  .change-from.many::after {
+    top: 2.1em;
   }
   .experimental-toggle span {
     max-width: 9em;

@@ -233,22 +233,24 @@ export function countriesWithSubdivisions(project: AxeptioProject): string[] {
 }
 
 export interface ChangeGroup {
-  /** Winner today (null = no banner). */
-  before: string | null;
+  /** Winners today (null = no banner) that switch to `after`, in configuration order (null last). */
+  befores: Array<string | null>;
   /** Winner with the experimental tree. */
   after: string | null;
-  /** Region keys where this change happens for at least one language, sorted. */
+  /** Region keys where some banner switches to `after` for at least one language, sorted. */
   regions: string[];
   /** Language keys affected, in evaluation order (OTHER_LANGUAGE last). */
   languages: string[];
 }
 
 /**
- * Places and languages where two evaluations of the same project disagree, grouped by
- * "banner today → banner after", biggest groups first.
+ * Places and languages where two evaluations of the same project disagree, grouped by the banner
+ * visitors get afterwards (several banners can switch to the same one), biggest groups first.
  */
 export function compareEvaluations(base: Evaluation, next: Evaluation): ChangeGroup[] {
-  const groups = new Map<string, ChangeGroup & { regionSet: Set<string>; languageSet: Set<string> }>();
+  const order = [...base.wins.keys()];
+  const rank = (id: string | null) => (id === null ? Infinity : order.indexOf(id));
+  const groups = new Map<string, { after: string | null; befores: Set<string | null>; regions: Set<string>; languages: Set<string> }>();
   for (const [key, outcome] of base.regions) {
     const other = next.regions.get(key);
     if (!other) continue;
@@ -256,18 +258,20 @@ export function compareEvaluations(base: Evaluation, next: Evaluation): ChangeGr
       const before = outcome.byLanguage[language] ?? null;
       const after = other.byLanguage[language] ?? null;
       if (before === after) continue;
-      const id = `${before}|${after}`;
-      const group = groups.get(id) ?? { before, after, regions: [], languages: [], regionSet: new Set(), languageSet: new Set() };
-      group.regionSet.add(key);
-      group.languageSet.add(language);
+      const id = String(after);
+      const group = groups.get(id) ?? { after, befores: new Set(), regions: new Set(), languages: new Set() };
+      group.befores.add(before);
+      group.regions.add(key);
+      group.languages.add(language);
       groups.set(id, group);
     }
   }
   return [...groups.values()]
-    .map(({ regionSet, languageSet, ...g }) => ({
-      ...g,
-      regions: [...regionSet].sort(),
-      languages: base.languages.filter((l) => languageSet.has(l)),
+    .map((g) => ({
+      befores: [...g.befores].sort((a, b) => rank(a) - rank(b)),
+      after: g.after,
+      regions: [...g.regions].sort(),
+      languages: base.languages.filter((l) => g.languages.has(l)),
     }))
     .sort((a, b) => b.regions.length - a.regions.length);
 }

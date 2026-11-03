@@ -108,5 +108,9 @@ describe('ENG-14524 experimental decision tree', () => {
     // Ontario has no entry of its own: the rest of Canada ("CA") stands for it.
     expect(toUs.flatMap((g) => g.regions)).toContain('CA');
     expect(groups.flatMap((g) => g.regions)).not.toContain('CA-QC');
+    // Both Quebec banners switch to the same one: a single group with two banners before.
+    const names = (ids: Array<string | null>) => ids.map((id) => mackage.cookies!.find((c) => c.identifier === id)?.name);
+    expect(toUs).toHaveLength(1);
+    expect(names(toUs[0].befores)).toEqual(['CA-QC EN', 'CA-QC FR']);
   });
 });
