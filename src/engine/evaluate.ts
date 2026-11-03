@@ -3,7 +3,7 @@
  * diagnostics always agree with what the SDK does.
  */
 import { ISO_3166_1 } from './iso-3166';
-import { SECOND_LEVEL_PARENTS } from './region-parents';
+import { FIRST_LEVEL_REGIONS, SECOND_LEVEL_PARENTS } from './region-parents';
 import { REGION_TABLE } from './regions';
 import { langKey, selectConfig, type ABTestHit, type Selection, type SelectionStep, type VisitorContext } from './select';
 import type { AxeptioConfig, AxeptioProject, StringOrList } from './types';
@@ -249,11 +249,18 @@ export interface ChangeGroup {
  */
 export function compareEvaluations(base: Evaluation, next: Evaluation): ChangeGroup[] {
   const order = [...base.wins.keys()];
+  // Axeptio always gets a first-level region along with the country. When every region of a
+  // country has its own outcome, the country-wide one is never served: changes there don't count.
+  const unreachable = (outcome: RegionOutcome) => {
+    if (outcome.subdivision !== null) return false;
+    const regions = FIRST_LEVEL_REGIONS[outcome.country];
+    return Boolean(regions?.length) && regions.every((code) => base.regions.has(regionKey(outcome.country, code)));
+  };
   const rank = (id: string | null) => (id === null ? Infinity : order.indexOf(id));
   const groups = new Map<string, { after: string | null; befores: Set<string | null>; regions: Set<string>; languages: Set<string> }>();
   for (const [key, outcome] of base.regions) {
     const other = next.regions.get(key);
-    if (!other) continue;
+    if (!other || unreachable(outcome)) continue;
     for (const language of base.languages) {
       const before = outcome.byLanguage[language] ?? null;
       const after = other.byLanguage[language] ?? null;

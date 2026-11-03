@@ -113,4 +113,24 @@ describe('ENG-14524 experimental decision tree', () => {
     expect(toUs).toHaveLength(1);
     expect(names(toUs[0].befores)).toEqual(['CA-QC EN', 'CA-QC FR']);
   });
+
+  it('ignores the country-wide outcome when every region of the country has a banner (Quebec Vacances)', () => {
+    const rest = ['AB', 'BC', 'MB', 'NB', 'NL', 'NT', 'NS', 'NU', 'ON', 'PE', 'SK', 'YT'].map((r) => `CA-${r}`);
+    const project: AxeptioProject = {
+      client: { cookiesSettings: { geolocation: true, geolocationFallbackConfigId: 'us-en' } },
+      cookies: [
+        cfg('qc-fr', 'fr', ['CA'], 'loi25', { subdivision: ['CA-QC'] }),
+        cfg('qc-en', 'en', ['CA'], 'loi25', { subdivision: ['CA-QC'] }),
+        cfg('us-en', 'en', ['US'], 'ccpa'),
+        cfg('roc-fr', 'fr', ['CA'], 'ccpa', { subdivision: rest }),
+        cfg('roc-en', 'en', ['CA'], 'ccpa', { subdivision: rest }),
+      ],
+    };
+    // The trees disagree for "Canada, no region", which Axeptio never reports.
+    expect(selectConfig(project, visitor('CA', 'en')).config?.identifier).toBe('roc-en');
+    expect(run(project, 'CA', 'en').config?.identifier).toBe('us-en');
+    const today = evaluateProject(project, { mode: 'actual' });
+    const next = evaluateProject(project, { mode: 'actual', experimental: true });
+    expect(compareEvaluations(today, next).flatMap((g) => g.regions)).not.toContain('CA');
+  });
 });
